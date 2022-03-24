@@ -6,7 +6,7 @@ commonFlags='-O0 -Wall -Wno-missing-braces -Wno-writable-strings'
 platformLibraries='-lSDL2'
 
 
-clang++ $debugFlags $commonFlags $engineFlags Engine.cpp -o ../build/engine.so
+clang++ $debugFlags $commonFlags $engineFlags ../code/Engine.cpp -o ../build/engine.so
 
 
-clang++ $commonFlags $debugFlags $platformFlags Linux_Main.cpp -o ../build/main $platformLibraries
+clang++ $commonFlags $debugFlags $platformFlags ../code/Linux_Main.cpp -o ../build/main $platformLibraries

@@ -252,15 +252,29 @@ PackV4ToU32(v4 a)
 }
 
 inline f32 
-Math_DotProductV4(v4 a, v3 b)
+Math_DotProductV4(v4 a, v3 b, f32 w = 1)
 {
 	// NOTE(Stephen): B.W = 1.0f
 	f32 result = (a.X * b.X + 
 				  a.Y * b.Y +
 				  a.Z * b.Z +
-				  a.W);
+				  a.W * w);
 	return(result);
 }
+
+//////////////////////////////// m4x4
+
+inline v4
+Math_MultiplyM4x4(m4x4* matrix, v3 vector, f32 w = 1)
+{
+	v4 result;
+	result.X = Math_DotProductV4(matrix->Row1, vector, w);
+	result.Y = Math_DotProductV4(matrix->Row2, vector, w);
+	result.Z = Math_DotProductV4(matrix->Row3, vector, w);
+	result.W = Math_DotProductV4(matrix->Row4, vector, w);
+	return(result);
+}
+
 //////////////////////////////// BOUNDS
 
 inline cube_bounds

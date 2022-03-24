@@ -39,8 +39,8 @@ RenderGroup_SetPerspectiveProjection(render_group* group,
 	f32 viewTop = scale;
 	f32 viewBottom = -viewTop;
 	
-	f32 a = (2.0f * nearPlane) / (viewRight - viewLeft);
-	f32 b = (2.0f * nearPlane) / (viewTop - viewBottom);
+	f32 a =  (2.0f * nearPlane) / (viewRight - viewLeft);
+	f32 b = -(2.0f * nearPlane) / (viewTop - viewBottom);
 	f32 c = -farPlane / (farPlane - nearPlane);
 	f32 d = -(farPlane * nearPlane) / (farPlane - nearPlane);
 	
@@ -129,17 +129,60 @@ TransformVertex(render_basis basis, v3 vertex, f32 w = 1.0f)
 	return(result);
 }
 
-internal_function inline v3
-InverseTransformVertex(render_basis basis, v3 vertex, f32 w = 1.0f)
+void
+RenderGroup_UpdateCameraToProjection(render_group* group, 
+									 v3 axisX,
+									 v3 axisY,
+									 v3 axisZ)
 {
-	v3 result;
-	result.X = Math_DotProductV3(vertex, 
-								 basis.AxisX) + basis.Position.X * w;
-	result.Y = Math_DotProductV3(vertex,
-								 basis.AxisY) + basis.Position.Y * w;
-	result.Z = Math_DotProductV3(vertex, 
-								 basis.AxisZ) + basis.Position.Z * w;
 	
+	m4x4* projection = &group->Perspective.Project;
+	m4x4* result = &group->CameraToProjection;
+	result->Row1.X = projection->Row1.X * axisX.X;
+	result->Row1.Y = projection->Row1.X * axisX.Y;
+	result->Row1.Z = projection->Row1.X * axisX.Z;
+	result->Row1.W = 0;
+	
+	result->Row2.X = projection->Row2.Y * axisY.X;
+	result->Row2.Y = projection->Row2.Y * axisY.Y;
+	result->Row2.Z = projection->Row2.Y * axisY.Z;
+	result->Row2.W = 0;
+	
+	result->Row3.X = projection->Row3.Z * axisZ.X;
+	result->Row3.Y = projection->Row3.Z * axisZ.Y;
+	result->Row3.Z = projection->Row3.Z * axisZ.Z;
+	result->Row3.W = projection->Row3.W;
+	
+	result->Row4.X = projection->Row4.Z * axisZ.X;
+	result->Row4.Y = projection->Row4.Z * axisZ.Y;
+	result->Row4.Z = projection->Row4.Z * axisZ.Z;
+	result->Row4.W = projection->Row4.W;
+	
+}
+
+m4x4
+Math_ComputeClipSpaceMatrix(m4x4* projection, render_basis* model)
+{
+	m4x4 result;
+	result.Row1.X = Math_DotProductV4(projection->Row1, model->AxisX, 0);
+	result.Row1.Y = Math_DotProductV4(projection->Row1, model->AxisY, 0);
+	result.Row1.Z = Math_DotProductV4(projection->Row1, model->AxisZ, 0);
+	result.Row1.W = Math_DotProductV4(projection->Row1, model->Position);
+	
+	result.Row2.X = Math_DotProductV4(projection->Row2, model->AxisX, 0);
+	result.Row2.Y = Math_DotProductV4(projection->Row2, model->AxisY, 0);
+	result.Row2.Z = Math_DotProductV4(projection->Row2, model->AxisZ, 0);
+	result.Row2.W = Math_DotProductV4(projection->Row2, model->Position);
+	
+	result.Row3.X = Math_DotProductV4(projection->Row3, model->AxisX, 0);
+	result.Row3.Y = Math_DotProductV4(projection->Row3, model->AxisY, 0);
+	result.Row3.Z = Math_DotProductV4(projection->Row3, model->AxisZ, 0);
+	result.Row3.W = Math_DotProductV4(projection->Row3, model->Position);
+	
+	result.Row4.X = Math_DotProductV4(projection->Row4, model->AxisX, 0);
+	result.Row4.Y = Math_DotProductV4(projection->Row4, model->AxisY, 0);
+	result.Row4.Z = Math_DotProductV4(projection->Row4, model->AxisZ, 0);
+	result.Row4.W = Math_DotProductV4(projection->Row4, model->Position);
 	return(result);
 }
 
@@ -148,153 +191,41 @@ ComputeTriangles(render_group* group, engine_mesh* mesh,
 				 render_basis basis)
 {
 	s32 result = 0;
-	memory_block* triangleStack = &group->ClippedTriangleStack;
+	//memory_block* triangleStack = &group->ClippedTriangleStack;
 	Assert(mesh->TriangleCount >= 3);
+	m4x4 clipSpaceMatrix = Math_ComputeClipSpaceMatrix(&group->CameraToProjection, &basis);
 	
 	for(s32 index = 0; index < mesh->TriangleCount; index += 3)
 	{
 		v3 vertex0 = mesh->Vertices[mesh->Triangles[index + 0]].Position;
-		
 		v3 vertex1 = mesh->Vertices[mesh->Triangles[index + 1]].Position;
 		v3 vertex2 = mesh->Vertices[mesh->Triangles[index + 2]].Position;
 		
+		// TODO(Stephen): Remove when we have per vertex normal
 		v3 line0 = vertex1 - vertex0;
 		v3 line1 = vertex2 - vertex0;
 		v3 fragNormal = Math_NormalizedV3(Math_CrossProductV3(line0, line1));
 		
-		vertex0 = TransformVertex(basis, vertex0);
-		vertex1 = TransformVertex(basis, vertex1);
-		vertex2 = TransformVertex(basis, vertex2);
+		v4 projected0 = Math_MultiplyM4x4(&clipSpaceMatrix, vertex0, 1);
+		v4 projected1 = Math_MultiplyM4x4(&clipSpaceMatrix, vertex1, 1);
+		v4 projected2 = Math_MultiplyM4x4(&clipSpaceMatrix, vertex2, 1);
 		
-		vertex0 = InverseTransformVertex(group->CameraBasis, vertex0);
-		vertex1 = InverseTransformVertex(group->CameraBasis, vertex1);
-		vertex2 = InverseTransformVertex(group->CameraBasis, vertex2);
+		projected0.XYZ *= Math_SafeRatioF32(1.0f, projected0.W);
+		projected1.XYZ *= Math_SafeRatioF32(1.0f, projected1.W);
+		projected2.XYZ *= Math_SafeRatioF32(1.0f, projected2.W);
 		
-		line0 = vertex1 - vertex0;
-		line1 = vertex2 - vertex0;
-		v3 normal = Math_CrossProductV3(line0, line1);
-		v3 toCamera = -vertex0;
-		
-		if(Math_DotProductV3(normal, toCamera) > 0.0f)
+		if(Math_SignedAreaOfTriangle(projected0.XY, projected1.XY, projected2.XY) >= 0.0f)
 		{
 			fragNormal = Math_NormalizedV3(TransformVertex(basis, fragNormal, 0));
 			
-			clipped_triangle triangles[2];
-			s32 triangleClipCount = Math_ClipTriangleAgainstPlane(vertex0, vertex1, vertex2,
-																  {0, 0, -0.2f}, {0, 0, -1},
-																  &triangles[0], &triangles[1]);
-			
-			for(s32 i = 0; i < triangleClipCount; ++i)
-			{
-				//wX -> Math_DotProductV4(group->Perspective.Project.Row4, vertexX)
-				//This just negates the z component and assignes it to wX
-				f32 w0 = -triangles[i].Vertex0.Z;
-				f32 w1 = -triangles[i].Vertex1.Z;
-				f32 w2 = -triangles[i].Vertex2.Z;
-				
-				f32 x0 = Math_DotProductV4(group->Perspective.Project.Row1, triangles[i].Vertex0) / w0;
-				f32 y0 = Math_DotProductV4(group->Perspective.Project.Row2, triangles[i].Vertex0) / w0;
-				f32 z0 = Math_DotProductV4(group->Perspective.Project.Row3, triangles[i].Vertex0) / w0;
-				
-				f32 x1 = Math_DotProductV4(group->Perspective.Project.Row1, triangles[i].Vertex1) / w1;
-				f32 y1 = Math_DotProductV4(group->Perspective.Project.Row2, triangles[i].Vertex1) / w1;
-				f32 z1 = Math_DotProductV4(group->Perspective.Project.Row3, triangles[i].Vertex1) / w1;
-				
-				f32 x2 = Math_DotProductV4(group->Perspective.Project.Row1, triangles[i].Vertex2) / w2;
-				f32 y2 = Math_DotProductV4(group->Perspective.Project.Row2, triangles[i].Vertex2) / w2;
-				f32 z2 = Math_DotProductV4(group->Perspective.Project.Row3, triangles[i].Vertex2) / w2;
-				
-				// NOTE(Stephen): NEGATE Y DUE TO PROJECTION CAUSING
-				// Y AXIS TO BE UPSIDE DOWN
-				//THIS IS DUE TO THE +Z AXIS CHANGING FROM OUT OF THE SCREEN
-				//TO 'INTO' THE SCREEN
-				v3 projected0 = { x0, -y0, z0 };
-				v3 projected1 = { x1, -y1, z1 };
-				v3 projected2 = { x2, -y2, z2 };
-				
-				clipped_triangle* a = MemoryBlock_PushStruct(triangleStack, clipped_triangle);
-				*a = { projected0, projected1, projected2 };
-			}
-			
-			for(s32 plane = 0; plane < 5; ++plane)
-			{
-				s32 triangleCount = triangleStack->Count;
-				
-				for(s32 t = 0; t < triangleCount; ++t)
-				{
-					clipped_triangle* triangle = MemoryBlock_PopStruct(triangleStack, clipped_triangle);
-					
-					switch(plane)
-					{
-						case 0:
-						{
-							triangleClipCount = Math_ClipTriangleAgainstPlane(triangle->Vertex0, 
-																			  triangle->Vertex1, 
-																			  triangle->Vertex2,
-																			  {-1, 0, 0}, {1, 0, 0},
-																			  &triangles[0],
-																			  &triangles[1]);
-						}break;
-						case 1:
-						{
-							triangleClipCount = Math_ClipTriangleAgainstPlane(triangle->Vertex0, 
-																			  triangle->Vertex1, 
-																			  triangle->Vertex2,
-																			  {0, -1, 0}, {0, 1, 0},
-																			  &triangles[0],
-																			  &triangles[1]);
-						}break;
-						case 2:
-						{
-							triangleClipCount = Math_ClipTriangleAgainstPlane(triangle->Vertex0, 
-																			  triangle->Vertex1, 
-																			  triangle->Vertex2,
-																			  {0, 1, 0}, {0, -1, 0},
-																			  &triangles[0],
-																			  &triangles[1]);
-						}break;
-						case 3:
-						{
-							triangleClipCount = Math_ClipTriangleAgainstPlane(triangle->Vertex0, 
-																			  triangle->Vertex1, 
-																			  triangle->Vertex2,
-																			  {1, 0, 0}, {-1, 0, 0},
-																			  &triangles[0],
-																			  &triangles[1]);
-						}break;
-						case 4:
-						{
-							triangleClipCount = Math_ClipTriangleAgainstPlane(triangle->Vertex0, 
-																			  triangle->Vertex1, 
-																			  triangle->Vertex2,
-																			  {0, 0, 1}, {0, 0, -1},
-																			  &triangles[0],
-																			  &triangles[1]);
-						}break;
-						
-					}//switch(plane)
-					
-					for(s32 c = 0; c < triangleClipCount; ++c)
-					{
-						clipped_triangle* a = MemoryBlock_PushStruct(triangleStack, clipped_triangle);
-						*a = triangles[c];
-					}//for(s32 c = 0; c < triangleClipCount; ++c)
-				}//for(s32 t = 0; t < triangleCount; ++t)
-			}//for(s32 plane = 0; plane < 5; ++plane)
-			
-			s32 length = triangleStack->Count;
-			result += length;
-			for(s32 i = 0; i < length; ++i)
-			{
-				clipped_triangle* source = MemoryBlock_PopStruct(triangleStack, clipped_triangle);
-				RenderGroup_PushProjectedTriangle(group,
-												  source->Vertex0, 
-												  source->Vertex1, 
-												  source->Vertex2,
-												  fragNormal);
-			}
-			
-		}//if(Math_DotProductV3(normal, toCamera) > 0.0f)
+			result++;
+			RenderGroup_PushProjectedTriangle(group,
+											  projected0.XYZ, 
+											  projected1.XYZ, 
+											  projected2.XYZ, 
+											  fragNormal);
+		}
+		
 	}//for(s32 index = 0; index < mesh->TriangleCount; index += 3)
 	return(result);
 }

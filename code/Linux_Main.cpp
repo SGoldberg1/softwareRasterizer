@@ -5,6 +5,13 @@
 #include <sys/stat.h>
 #include <stdio.h>
 
+#if ENGINE_DEBUG
+#include <stdlib.h>
+#define RUNBUILD_SCRIPT system("../code/build.sh") 
+#else
+#define RUNBUILD_SCRIPT 
+#endif
+
 struct linux_engine_library
 {
 	time_t ModificationDate;
@@ -68,7 +75,7 @@ Linux_ProcessEventQueue(platform_input* input)
 			case SDL_KEYUP:
 			{
 				b32 isDown = event.key.state == SDL_PRESSED;
-				//b32 isUp = event.key.state == SDL_RELEASED;
+				b32 isUp = event.key.state == SDL_RELEASED;
 				
 				switch(event.key.keysym.sym)
 				{
@@ -83,6 +90,8 @@ Linux_ProcessEventQueue(platform_input* input)
 					case SDLK_RIGHT: { Linux_UpdateButton(&input->Keyboard.Right, isDown); }break; 
 					case SDLK_UP: { Linux_UpdateButton(&input->Keyboard.Up, isDown); }break; 
 					case SDLK_DOWN: { Linux_UpdateButton(&input->Keyboard.Down, isDown); }break; 
+					
+					case SDLK_F5: { if(isUp) { RUNBUILD_SCRIPT; } }break; 
 					
 					EmptyDefaultCase;
 				}

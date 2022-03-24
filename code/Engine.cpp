@@ -48,10 +48,6 @@ Mesh_CreateCube(memory_block* block)
 	result.Vertices[1] = {  0.5f, -0.5f, 0.5f,   0.0f, 0.0f, 1.0f };//1
 	result.Vertices[2] = {  0.5f,  0.5f, 0.5f,   0.0f, 0.0f, 1.0f };//2
 	
-	result.Vertices[0] = { -0.5f, -0.5f, 0.5f,   0.0f, 0.0f, 1.0f };//0
-	result.Vertices[1] = {  0.5f, -0.5f, 0.5f,   0.0f, 0.0f, 1.0f };//1
-	result.Vertices[2] = {  0.5f,  0.5f, 0.5f,   0.0f, 0.0f, 1.0f };//2
-	
 	result.Vertices[3] = { -0.5f,  0.5f, 0.5f,   0.0f, 0.0f, 1.0f };//3
 	//BACK
 	result.Vertices[4] = {  0.5f, -0.5f, -0.5f,   0.0f, 0.0f, -1.0f };//4
@@ -276,6 +272,12 @@ ENGINE_UPDATE(EngineUpdate)
 	renderGroup->CameraBasis.AxisX = state->Camera.AxisX;
 	renderGroup->CameraBasis.AxisY = state->Camera.AxisY;
 	renderGroup->CameraBasis.AxisZ = state->Camera.AxisZ;
+	renderGroup->CameraBasis.Position = {};
+	
+	RenderGroup_UpdateCameraToProjection(renderGroup, 
+										 state->Camera.AxisX,
+										 state->Camera.AxisY,
+										 state->Camera.AxisZ);
 	RenderGroup_Reset(renderGroup);
 	RenderGroup_PushClearScreen(renderGroup, {0.1f, 0.1f, 0.1f, 0});
 	

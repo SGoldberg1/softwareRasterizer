@@ -11,6 +11,7 @@ union engine_vertex
 	{
 		v3 Position;
 		v3 Normal;
+		v2 UV;
 	};
 };
 
@@ -56,6 +57,9 @@ struct render_group
 	
 	render_projection Perspective;
 	render_basis CameraBasis;
+	
+	m4x4 CameraToProjection;
+	f32 GuardBandScale;
 	f32 FieldOfView;
 	f32 FarPlane;
 	f32 NearPlane;

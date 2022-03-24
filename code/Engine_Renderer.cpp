@@ -114,6 +114,28 @@ internal_function void
 DrawTriangle(render_bitmap* buffer, render_bitmap* depth, v2 pixel0, v2 pixel1, v2 pixel2,
 			 f32 oneOverCameraZ0, f32 oneOverCameraZ1, f32 oneOverCameraZ2, v4 color)
 {
+	
+	u32 H = 0xFFFFFFFF;
+	local_persist u32 texture[16 * 16] = 
+	{
+		H, H, H, H, H, H, H, H, 0, 0, 0, 0, 0, 0, 0, 0,
+		H, H, H, H, H, H, H, H, 0, 0, 0, 0, 0, 0, 0, 0,
+		H, H, H, H, H, H, H, H, 0, 0, 0, 0, 0, 0, 0, 0,
+		H, H, H, H, H, H, H, H, 0, 0, 0, 0, 0, 0, 0, 0,
+		H, H, H, H, H, H, H, H, 0, 0, 0, 0, 0, 0, 0, 0,
+		H, H, H, H, H, H, H, H, 0, 0, 0, 0, 0, 0, 0, 0,
+		H, H, H, H, H, H, H, H, 0, 0, 0, 0, 0, 0, 0, 0,
+		H, H, H, H, H, H, H, H, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, H, H, H, H, H, H, H, H,
+		0, 0, 0, 0, 0, 0, 0, 0, H, H, H, H, H, H, H, H,
+		0, 0, 0, 0, 0, 0, 0, 0, H, H, H, H, H, H, H, H,
+		0, 0, 0, 0, 0, 0, 0, 0, H, H, H, H, H, H, H, H,
+		0, 0, 0, 0, 0, 0, 0, 0, H, H, H, H, H, H, H, H,
+		0, 0, 0, 0, 0, 0, 0, 0, H, H, H, H, H, H, H, H,
+		0, 0, 0, 0, 0, 0, 0, 0, H, H, H, H, H, H, H, H,
+		0, 0, 0, 0, 0, 0, 0, 0, H, H, H, H, H, H, H, H,
+	};
+	
 	s32 left = Math_RoundF32ToS32(Math_MinF32(pixel0.X, Math_MinF32(pixel1.X, pixel2.X)));
 	s32 right = Math_RoundF32ToS32(Math_MaxF32(pixel0.X, Math_MaxF32(pixel1.X, pixel2.X)));
 	s32 top = Math_RoundF32ToS32(Math_MinF32(pixel0.Y, Math_MinF32(pixel1.Y, pixel2.Y)));
@@ -163,12 +185,21 @@ DrawTriangle(render_bitmap* buffer, render_bitmap* depth, v2 pixel0, v2 pixel1, 
 					v3 c0 = {1, 0, 0};
 					v3 c1 = {0, 1, 0};
 					v3 c2 = {0, 0, 1};
-					
 					v4 c;
 					c.R = testA * c0.X + testB * c1.X + testC * c2.X;
 					c.G = testA * c0.Y + testB * c1.Y + testC * c2.Y;
 					c.B = testA * c0.Z + testB * c1.Z + testC * c2.Z;
 					u32 p = PackV4ToU32(c);
+					
+					f32 u = testB;
+					f32 v = testC;
+					
+					s32 xP = (s32)(15.0f * u);
+					s32 yP = (s32)(15.0f * v);
+					
+					u32* texel = texture + xP + yP * 16;
+					p = *texel;
+					
 					*colorBufferPixel = p;
 #else
 					*colorBufferPixel = pixelColor;
