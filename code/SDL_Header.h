@@ -1043,6 +1043,4 @@ extern "C" void* SDL_LoadFunction(void* handle, const char* name);
 
 extern "C" void SDL_UnloadObject(void* handle);
 
-//////////////////////////////// 
-
 #endif //_S_D_L__HEADER_H

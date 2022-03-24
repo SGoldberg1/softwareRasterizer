@@ -20,11 +20,102 @@ struct linux_engine_library
 	engine_update* Update;
 };
 
+#pragma pack(push, 1)
+struct bitmap_header
+{
+    s16 ID;
+    s32 FileSize;
+    s16 Reserved1;
+    s16 Reserved2;
+    s32 PixelOffset;
+    s32 HeaderSize;
+    s32 Width;
+    s32 Height;
+    s16 Planes;
+    s16 BitsPerPixel;
+    s32 Compression;
+    s32 ImageSize;
+    s32 PixelPerMeterX;
+    s32 PixelPerMeterY;
+    s32 ColorPalette;
+    s32 ImportantColors;
+	
+	u32 RedMask;
+    u32 GreenMask;
+    u32 BlueMask;
+	
+};
+#pragma pack(pop)
+
 global_variable s32 GlobalWindowWidth = 1920;
 global_variable s32 GlobalWindowHeight = 1080;
 global_variable b32 GlobalIsRunning = TRUE;
 global_variable engine_buffer GlobalEngineOffscreenBuffer = {};
 global_variable u64 GlobalPerformanceFrequency = 0;
+
+
+internal_function void
+WriteGlobalEngineBuffers(void)
+{
+	FILE* colorFile = fopen("../misc/colorBuffer.bmp", "w");
+	FILE* depthFile = fopen("../misc/depthBuffer.bmp", "w");
+	FILE* depthF32File = fopen("../misc/depthBuffer(f32).bmp", "w");
+	
+	bitmap_header bitmap = {};
+	bitmap.ID = 0x4D42;
+	bitmap.FileSize = sizeof(bitmap_header) + Bytes(4) * (GlobalEngineOffscreenBuffer.Color.Width *
+														  GlobalEngineOffscreenBuffer.Color.Height);
+	bitmap.PixelOffset = sizeof(bitmap_header);
+	
+	bitmap.HeaderSize = sizeof(bitmap_header) - Bytes(14);
+	bitmap.Width = GlobalEngineOffscreenBuffer.Color.Width;
+	bitmap.Height = -GlobalEngineOffscreenBuffer.Color.Height;
+	bitmap.Planes = 1;
+	bitmap.BitsPerPixel = 32;
+	bitmap.Compression = 3;
+	bitmap.ImageSize = Bytes(4) * (GlobalEngineOffscreenBuffer.Color.Width *
+								   GlobalEngineOffscreenBuffer.Color.Height);
+	bitmap.PixelPerMeterX = 2835;
+	bitmap.PixelPerMeterY = 2835;
+	
+	bitmap.RedMask   = 0xFF000000;
+	bitmap.GreenMask = 0x00FF0000;
+	bitmap.BlueMask  = 0x0000FF00;
+	
+	if(colorFile)
+	{
+		fwrite(&bitmap, sizeof(bitmap_header), 1, colorFile);
+		fwrite(GlobalEngineOffscreenBuffer.Color.Pixels, bitmap.ImageSize, 1, colorFile);
+		fclose(colorFile);
+	}
+	
+	if(depthFile)
+	{
+		
+		s32 size = GlobalEngineOffscreenBuffer.Color.Width * GlobalEngineOffscreenBuffer.Color.Height;
+		u32* color = (u32*)GlobalEngineOffscreenBuffer.Color.Pixels;
+		f32* depth = (f32*)GlobalEngineOffscreenBuffer.Depth.Pixels;
+		
+		for(s32 i = 0; i < size; ++i)
+		{
+			f32 value = *depth++;
+			u32 channel = (u32)((value * 255.0f) + 0.5f);
+			*color++ = (channel << 24 | channel << 16 | channel << 8 | channel << 0);
+		}
+		
+		fwrite(&bitmap, sizeof(bitmap_header), 1, depthFile);
+		fwrite(GlobalEngineOffscreenBuffer.Color.Pixels, bitmap.ImageSize, 1, depthFile);
+		fclose(depthFile);
+	}
+	
+	if(depthF32File)
+	{
+		fwrite(&bitmap, sizeof(bitmap_header), 1, depthF32File);
+		fwrite(GlobalEngineOffscreenBuffer.Depth.Pixels, bitmap.ImageSize, 1, depthF32File);
+		fclose(depthF32File);
+	}
+	
+}
 
 internal_function void
 Linux_ResizeOffscreenBuffer(engine_buffer* buffer,
@@ -92,6 +183,7 @@ Linux_ProcessEventQueue(platform_input* input)
 					case SDLK_DOWN: { Linux_UpdateButton(&input->Keyboard.Down, isDown); }break; 
 					
 					case SDLK_F5: { if(isUp) { RUNBUILD_SCRIPT; } }break; 
+					case SDLK_F1: { if(isUp) { WriteGlobalEngineBuffers(); } }break; 
 					
 					EmptyDefaultCase;
 				}
