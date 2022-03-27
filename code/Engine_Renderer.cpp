@@ -178,6 +178,8 @@ DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_bitmap* texture
 					
 					v2 texel;
 					texel.X = uv.X * (texture->Width - 1);
+					// TODO(Stephen): We want bottom up textures
+					// Remove y inversion once asset processor is implemented
 					texel.Y = (texture->Height - 1) * ( 1.0f - uv.Y);
 					pixelColor = texturePixel[(s32)texel.Y * 16 + (s32)texel.X];
 					*colorBufferPixel = pixelColor;

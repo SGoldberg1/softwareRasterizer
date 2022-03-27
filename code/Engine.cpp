@@ -12,6 +12,7 @@
 #include "Engine_Math.cpp"
 #include "Engine_Renderer.cpp"
 
+
 engine_mesh
 Mesh_CreateCube(memory_block* block)
 {
@@ -39,7 +40,7 @@ Mesh_CreateCube(memory_block* block)
 	result.Triangles[33] =  5; result.Triangles[34] =  1; result.Triangles[35] =  0; 
 	
 	result.VertexCount = 8;
-	result.Vertices = MemoryBlock_PushArray(block, result.VertexCount, v3);
+	result.Vertices = MemoryBlock_PushArray(block, result.VertexCount, vertex_attribute);
 	
 	result.Vertices[0]  = { -0.5f, -0.5f, 0.5f };//0
 	result.Vertices[1] = {  0.5f, -0.5f, 0.5f };//1
@@ -63,7 +64,7 @@ Mesh_CreatePlane(memory_block* block, s32 width, s32 depth)
 	result.TriangleCount = 6 * (width) * (depth);
 	result.Triangles = MemoryBlock_PushArray(block, result.TriangleCount, s32);
 	result.VertexCount = (width + 1) * (depth + 1);
-	result.Vertices = MemoryBlock_PushArray(block, result.VertexCount, v3);
+	result.Vertices = MemoryBlock_PushArray(block, result.VertexCount, vertex_attribute);
 	
 	f32 vertexX = -width * 0.5f;
 	f32 vertexZ = depth * 0.5f;
@@ -73,7 +74,7 @@ Mesh_CreatePlane(memory_block* block, s32 width, s32 depth)
 	{
 		for(s32 x = 0; x <= width; ++x)
 		{
-			result.Vertices[vi++] = V3((f32)x + vertexX, 0, vertexZ - (f32)z);
+			result.Vertices[vi++].Vertex = V3((f32)x + vertexX, 0, vertexZ - (f32)z);
 		}
 	}
 	
@@ -112,11 +113,12 @@ Mesh_CreateRectangle(memory_block* block)
 	result.Triangles[3 ] =  0; result.Triangles[4 ] =  2; result.Triangles[5 ] =  3;
 	
 	result.VertexCount = 4;
-	result.Vertices = MemoryBlock_PushArray(block, result.VertexCount, v3);
-	result.Vertices[0] = { -0.5f, -0.5f, 0.5f };//0
-	result.Vertices[1] = {  0.5f, -0.5f, 0.5f };//1
-	result.Vertices[2] = {  0.5f,  0.5f, 0.5f };//2
-	result.Vertices[3] = { -0.5f,  0.5f, 0.5f };//3
+	result.Vertices = MemoryBlock_PushArray(block, result.VertexCount, vertex_attribute);
+	//                      Position            Normal             UV
+	result.Vertices[0] = { -0.5f, -0.5f, 0.5f,  0.0f, 0.0f, 1.0f,  0.0f, 0.0f };//0
+	result.Vertices[1] = {  0.5f, -0.5f, 0.5f,  0.0f, 0.0f, 1.0f,  1.0f, 0.0f };//1
+	result.Vertices[2] = {  0.5f,  0.5f, 0.5f,  0.0f, 0.0f, 1.0f,  1.0f, 1.0f };//2
+	result.Vertices[3] = { -0.5f,  0.5f, 0.5f,  0.0f, 0.0f, 1.0f,  0.0f, 1.0f };//3
 	
 	return(result);
 }
@@ -219,7 +221,7 @@ ENGINE_UPDATE(EngineUpdate)
 	
 	UpdateCamera(state, movement * 6 * time->Delta, rotation * 2 * time->Delta);
 	
-	ClearBitmap(&buffer->Color, {});
+	ClearBitmap(&buffer->Color, {0.1f, 0.1f, 0.1f, 0});
 	ClearDepthBuffer(&buffer->Depth, 0.0f);
 	
 	engine_mesh* mesh = &state->Rectangle;
@@ -229,19 +231,14 @@ ENGINE_UPDATE(EngineUpdate)
 	f32 s = Math_Sin(elapsedTime);
 	
 	m4x4 model;
-	model.Row1 = {1, 0, 0, -state->CameraPosition.X};
-	model.Row2 = {0, 1, 0, -state->CameraPosition.Y};
+	model.Row1 = {c, -s, 0, -state->CameraPosition.X};
+	model.Row2 = {s, c, 0, -state->CameraPosition.Y};
 	model.Row3 = {0, 0, 1, -state->CameraPosition.Z};
 	model.Row4 = {0, 0, 0, 1};
 	
 	m4x4 viewBasis = Math_MultiplyM4x4(&state->Camera, &model);
 	m4x4 clipBasis = Math_MultiplyM4x4(&state->Perspective, &viewBasis); 
 	
-	
-	v2 uv0 = { 0, 0 };
-	v2 uv1 = { 1, 0 };
-	v2 uv2 = { 1, 1 };
-	v2 uv3 = { 0, 1 };
 	
 	u32 H = 0xFFFFFFFF;
 	u32 R = 0xFF0000FF;
@@ -269,12 +266,16 @@ ENGINE_UPDATE(EngineUpdate)
 	texture.Height = 16;
 	texture.Pixels = pixels;
 	
-	for(s32 index = 0; index < 3; index += 3)
+	for(s32 index = 0; index < mesh->TriangleCount; index += 3)
 	{
 		//Transform vertices into clipspace
-		v4 vertex0 = Math_MultiplyM4x4(&clipBasis, mesh->Vertices[mesh->Triangles[index + 0]]);
-		v4 vertex1 = Math_MultiplyM4x4(&clipBasis, mesh->Vertices[mesh->Triangles[index + 1]]);
-		v4 vertex2 = Math_MultiplyM4x4(&clipBasis, mesh->Vertices[mesh->Triangles[index + 2]]);
+		vertex_attribute* attribute0 = mesh->Vertices + mesh->Triangles[index + 0];
+		vertex_attribute* attribute1 = mesh->Vertices + mesh->Triangles[index + 1];
+		vertex_attribute* attribute2 = mesh->Vertices + mesh->Triangles[index + 2];
+		
+		v4 vertex0 = Math_MultiplyM4x4(&clipBasis, attribute0->Vertex);
+		v4 vertex1 = Math_MultiplyM4x4(&clipBasis, attribute1->Vertex);
+		v4 vertex2 = Math_MultiplyM4x4(&clipBasis, attribute2->Vertex);
 		
 		vertex0.XYZ *= 1.0f / vertex0.W;
 		vertex1.XYZ *= 1.0f / vertex1.W;
@@ -300,11 +301,12 @@ ENGINE_UPDATE(EngineUpdate)
 									oneOverCameraZ0, oneOverCameraZ1, oneOverCameraZ2);
 			
 			DrawTriangle(&buffer->Color, &buffer->Depth, &texture,
-						 vertex0.XY, vertex1.XY, vertex2.XY, uv0, uv1, uv2,
+						 vertex0.XY, vertex1.XY, vertex2.XY, 
+						 attribute0->UV, attribute1->UV, attribute2->UV,
 						 oneOverCameraZ0, oneOverCameraZ1, oneOverCameraZ2, {0.3f, 0.3f, 0.7f, 1});
 			
 			
-#if 1
+#if 0
 			DrawLine2D(&buffer->Color, vertex0.XY, vertex1.XY, {1, 0, 0, 1});
 			DrawLine2D(&buffer->Color, vertex0.XY, vertex2.XY, {1, 0, 0, 1});
 			DrawLine2D(&buffer->Color, vertex1.XY, vertex2.XY, {1, 0, 0, 1});

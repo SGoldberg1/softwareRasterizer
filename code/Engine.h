@@ -3,12 +3,25 @@
 #ifndef _ENGINE_H
 #define _ENGINE_H
 
+
+
+union vertex_attribute
+{
+	f32 E[8];
+	struct
+	{
+		v3 Vertex;
+		v3 Normal;
+		v2 UV;
+	};
+};
+
 struct engine_mesh
 {
 	s32 TriangleCount;
 	s32* Triangles;
 	s32 VertexCount;
-	v3* Vertices;
+	vertex_attribute* Vertices;
 	v3* Normals;
 };
 
