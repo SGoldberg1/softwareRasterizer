@@ -3,33 +3,31 @@
 #ifndef _ENGINE_H
 #define _ENGINE_H
 
-struct engine_camera
+struct engine_mesh
 {
-	v3 AxisX;
-	v3 AxisY;
-	v3 AxisZ;
-	v2 Rotation;
-	world_position Position;
+	s32 TriangleCount;
+	s32* Triangles;
+	s32 VertexCount;
+	v3* Vertices;
+	v3* Normals;
 };
+
 
 struct engine_state
 {
 	memory_block WorldMemory;
 	
-	engine_camera Camera;
+	f32 FieldOfView;
+	f32 FarPlane;
+	f32 NearPlane;
+	m4x4 Perspective;
+	v2 CameraRotation;
+	v3 CameraPosition;
+	m4x4 Camera;
 	
-	render_group RenderGroup;
 	engine_mesh Cube;
 	engine_mesh Plane;
 	engine_mesh Rectangle;
-	
-	
-	world_map* WorldMap;
-	
-	s32 HighEntityCount;
-	s32 LowEntityCount;
-	world_low_entity LowEntities[4096 * 2 * 2];
-	world_high_entity HighEntities[256 * 2 * 2 * 2 * 2];
 };
 
 #endif //_ENGINE_H

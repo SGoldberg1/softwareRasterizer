@@ -21,6 +21,8 @@ typedef int32_t b32;
 typedef float  f32;
 typedef double f64;
 
+typedef uintptr_t u32ptr;
+
 #define TRUE  (1)
 #define FALSE (0)
 
@@ -36,8 +38,10 @@ typedef double f64;
 
 #if ENGINE_DEBUG
 #define Assert(statement) if(!(statement)) { int* x = 0; *x = 0; }
+#define ValidateAlignment16(address) Assert(((u32ptr)(address) & 0xF) == 0)
 #else
 #define Assert(statement)
+#define ValidateAlignment16(address)
 #endif
 
 #define InvalidCodePath Assert(!"Invalid Code Path")

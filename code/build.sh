@@ -1,6 +1,6 @@
 
 debugFlags='-DENGINE_DEBUG=1 -g'
-engineFlags='-fPIC -shared'
+engineFlags='-fPIC -shared -msse4.1'
 platformFlags='-rdynamic'
 commonFlags='-O0 -Wall -Wno-missing-braces -Wno-writable-strings'
 platformLibraries='-lSDL2'

@@ -3,7 +3,6 @@
 inline void
 MemoryBlock_Initialize(memory_block* block, s32 size, void* base)
 {
-	block->Count = 0;
 	block->Used = 0;
 	block->Size = size;
 	block->Base = (u8*)base;
@@ -13,7 +12,6 @@ inline void
 MemoryBlock_Reset(memory_block* block)
 {
 	block->Used = 0;
-	block->Count = 0;
 }
 
 #define MemoryBlock_PushSize(block, size) MemoryBlock_PushSize_(block, size)
@@ -28,7 +26,6 @@ MemoryBlock_PushSize_(memory_block* block, s32 size)
 	Assert((block->Used + size) <= block->Size);
 	void* result = (block->Base + block->Used);
 	block->Used += size;
-	++block->Count;
 	return(result);
 }
 
@@ -42,6 +39,5 @@ MemoryBlock_PopSize_(memory_block* block, s32 size)
 	Assert((block->Used - size) >= 0);
 	block->Used -= size;
 	void* result = (block->Base + block->Used);
-	--block->Count;
 	return(result);
 }

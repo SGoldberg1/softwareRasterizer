@@ -262,6 +262,17 @@ Math_DotProductV4(v4 a, v3 b, f32 w = 1)
 	return(result);
 }
 
+inline f32 
+Math_DotProductV4(v4 a, v4 b)
+{
+	// NOTE(Stephen): B.W = 1.0f
+	f32 result = (a.X * b.X + 
+				  a.Y * b.Y +
+				  a.Z * b.Z +
+				  a.W * b.W);
+	return(result);
+}
+
 //////////////////////////////// m4x4
 
 inline v4
@@ -275,52 +286,44 @@ Math_MultiplyM4x4(m4x4* matrix, v3 vector, f32 w = 1)
 	return(result);
 }
 
-//////////////////////////////// BOUNDS
-
-inline cube_bounds
-Math_GetCubeBoundsCenter(v3 center, v3 dimensions)
+inline v4
+Math_MultiplyM4x4(m4x4* matrix, v4 vector)
 {
-	cube_bounds result;
-	result.Min.X = center.X - dimensions.X * 0.5f;
-	result.Min.Y = center.Y - dimensions.Y * 0.5f;
-	result.Min.Z = center.Z - dimensions.Z * 0.5f;
+	v4 result;
+	result.X = Math_DotProductV4(matrix->Row1, vector);
+	result.Y = Math_DotProductV4(matrix->Row2, vector);
+	result.Z = Math_DotProductV4(matrix->Row3, vector);
+	result.W = Math_DotProductV4(matrix->Row4, vector);
+	return(result);
+}
+
+inline m4x4
+Math_MultiplyM4x4(m4x4* a, m4x4* b)
+{
+	m4x4 result;
+	result.Row1.X = Math_DotProductV4(a->Row1, {b->Row1.X, b->Row2.X, b->Row3.X, b->Row4.X});
+	result.Row1.Y = Math_DotProductV4(a->Row1, {b->Row1.Y, b->Row2.Y, b->Row3.Y, b->Row4.Y});
+	result.Row1.Z = Math_DotProductV4(a->Row1, {b->Row1.Z, b->Row2.Z, b->Row3.Z, b->Row4.Z});
+	result.Row1.W = Math_DotProductV4(a->Row1, {b->Row1.W, b->Row2.W, b->Row3.W, b->Row4.W});
 	
-	result.Max.X = result.Min.X + dimensions.X;
-	result.Max.Y = result.Min.Y + dimensions.Y;
-	result.Max.Z = result.Min.Z + dimensions.Z;
+	result.Row2.X = Math_DotProductV4(a->Row2, {b->Row1.X, b->Row2.X, b->Row3.X, b->Row4.X});
+	result.Row2.Y = Math_DotProductV4(a->Row2, {b->Row1.Y, b->Row2.Y, b->Row3.Y, b->Row4.Y});
+	result.Row2.Z = Math_DotProductV4(a->Row2, {b->Row1.Z, b->Row2.Z, b->Row3.Z, b->Row4.Z});
+	result.Row2.W = Math_DotProductV4(a->Row2, {b->Row1.W, b->Row2.W, b->Row3.W, b->Row4.W});
 	
-	return(result);
-}
-
-inline v3
-Math_GetMinCubeBounds(cube_bounds bounds)
-{
-	v3 result;
-	result.X = Math_MinF32(bounds.Min.X, bounds.Max.X);
-	result.Y = Math_MinF32(bounds.Min.Y, bounds.Max.Y);
-	result.Z = Math_MinF32(bounds.Min.Z, bounds.Max.Z);
-	return(result);
-}
-
-inline v3
-Math_GetMaxCubeBounds(cube_bounds bounds)
-{
-	v3 result;
-	result.X = Math_MaxF32(bounds.Min.X, bounds.Max.X);
-	result.Y = Math_MaxF32(bounds.Min.Y, bounds.Max.Y);
-	result.Z = Math_MaxF32(bounds.Min.Z, bounds.Max.Z);
-	return(result);
-}
-
-inline b32
-Math_IsWithinCubeBounds(cube_bounds bounds, v3 test)
-{
-	b32 result = (Math_IsClampedInclusiveF32(test.X, bounds.Min.X, bounds.Max.X) &&
-				  Math_IsClampedInclusiveF32(test.Y, bounds.Min.Y, bounds.Max.Y) &&
-				  Math_IsClampedInclusiveF32(test.Z, bounds.Min.Z, bounds.Max.Z));
+	result.Row3.X = Math_DotProductV4(a->Row3, {b->Row1.X, b->Row2.X, b->Row3.X, b->Row4.X});
+	result.Row3.Y = Math_DotProductV4(a->Row3, {b->Row1.Y, b->Row2.Y, b->Row3.Y, b->Row4.Y});
+	result.Row3.Z = Math_DotProductV4(a->Row3, {b->Row1.Z, b->Row2.Z, b->Row3.Z, b->Row4.Z});
+	result.Row3.W = Math_DotProductV4(a->Row3, {b->Row1.W, b->Row2.W, b->Row3.W, b->Row4.W});
+	
+	result.Row4.X = Math_DotProductV4(a->Row4, {b->Row1.X, b->Row2.X, b->Row3.X, b->Row4.X});
+	result.Row4.Y = Math_DotProductV4(a->Row4, {b->Row1.Y, b->Row2.Y, b->Row3.Y, b->Row4.Y});
+	result.Row4.Z = Math_DotProductV4(a->Row4, {b->Row1.Z, b->Row2.Z, b->Row3.Z, b->Row4.Z});
+	result.Row4.W = Math_DotProductV4(a->Row4, {b->Row1.W, b->Row2.W, b->Row3.W, b->Row4.W});
 	
 	return(result);
 }
+
 //////////////////////////////// Intersection
 
 inline b32
@@ -334,7 +337,7 @@ Math_LineToLineIntersection(v2 p0, v2 p1, v2 p2, v2 p3,
 	
 	f32 determinant = ((deltaA.X * deltaB.Y) - (deltaA.Y * deltaB.X));
 	
-	if(determinant != 0.0f)
+	if(determinant > 0.0f)
 	{
 		f32 determinantA1 = (((p2.X - p0.X) * deltaB.Y) - ((p2.Y - p0.Y) * deltaB.X));
 		f32 determinantA2 = ((deltaA.X * (p2.Y - p0.Y)) - (deltaA.Y * (p2.X - p0.X)));
@@ -398,85 +401,5 @@ Math_LineToPlaneIntersection(v3 start, v3 end, v3 planeNormal, v3 planePoint)
 	Assert(denominator != 0.0f);
 	f32 t = numerator / denominator;
 	result = start + t * delta;
-	return(result);
-}
-
-s32
-Math_ClipTriangleAgainstPlane(v3 vertex0, v3 vertex1, v3 vertex2, 
-							  v3 planePoint, v3 planeNormal,
-							  clipped_triangle* triangleA, clipped_triangle* triangleB)
-{
-	s32 result = 0;
-	s32 insideCount = 0;
-	s32 outsideCount = 0;
-	v3* insideVertices[3];
-	v3* outsideVertices[3];
-	
-	if(Math_DotProductV3(planeNormal, vertex0 - planePoint) >= 0.0f) { insideVertices[insideCount++] = &vertex0; }
-	else { outsideVertices[outsideCount++] = &vertex0; }
-	if(Math_DotProductV3(planeNormal, vertex1 - planePoint) >= 0.0f) { insideVertices[insideCount++] = &vertex1; }
-	else { outsideVertices[outsideCount++] = &vertex1; }
-	if(Math_DotProductV3(planeNormal, vertex2 - planePoint) >= 0.0f) { insideVertices[insideCount++] = &vertex2; }
-	else { outsideVertices[outsideCount++] = &vertex2; }
-	
-	if(outsideCount == 3) 
-	{
-		result = 0;
-	}
-	if(insideCount == 3)
-	{
-		triangleA->Vertex0 = vertex0;
-		triangleA->Vertex1 = vertex1;
-		triangleA->Vertex2 = vertex2;
-		result = 1;
-	}
-	else if(insideCount == 1)
-	{
-		//TO MAINTAIN CCW WINDING ORDER OF VERTICES
-		if(outsideVertices[0] == &vertex0 && outsideVertices[1] == &vertex2)
-		{
-			outsideVertices[0] = &vertex2;
-			outsideVertices[1] = &vertex0;
-		}
-		
-		v3 outside0 = *outsideVertices[0];
-		v3 outside1 = *outsideVertices[1];
-		
-		v3 inside = *insideVertices[0];
-		v3 intersectionA = Math_LineToPlaneIntersection(inside, outside0, planeNormal, planePoint);
-		v3 intersectionB = Math_LineToPlaneIntersection(inside, outside1, planeNormal, planePoint);
-		
-		triangleA->Vertex0 = inside;
-		triangleA->Vertex1 = intersectionA;
-		triangleA->Vertex2 = intersectionB;
-		result = 1;
-	}
-	else if(insideCount == 2)
-	{
-		//TO MAINTAIN CCW WINDING ORDER OF VERTICES
-		if(insideVertices[0] == &vertex0 && insideVertices[1] == &vertex2)
-		{
-			insideVertices[0] = &vertex2;
-			insideVertices[1] = &vertex0;
-		}
-		
-		v3 outside = *outsideVertices[0];
-		v3 inside0 = *insideVertices[0];
-		v3 inside1 = *insideVertices[1];
-		v3 intersectionA = Math_LineToPlaneIntersection(inside0, outside, planeNormal, planePoint);
-		v3 intersectionB = Math_LineToPlaneIntersection(inside1, outside, planeNormal, planePoint);
-		
-		triangleA->Vertex0 = inside0;
-		triangleA->Vertex1 = intersectionB;
-		triangleA->Vertex2 = intersectionA;
-		
-		triangleB->Vertex0 = inside0;
-		triangleB->Vertex1 = inside1;
-		triangleB->Vertex2 = intersectionB;
-		
-		result = 2;
-	}
-	
-	
 	return(result);
 }

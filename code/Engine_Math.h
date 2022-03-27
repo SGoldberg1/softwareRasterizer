@@ -315,6 +315,12 @@ union v4
 	};
 };
 
+inline v4
+V4(v3 vector, f32 w)
+{
+	v4 result = { vector.X, vector.Y, vector.Z, w };
+	return(result);
+}
 
 union m4x4
 {

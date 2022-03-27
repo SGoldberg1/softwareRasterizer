@@ -6,15 +6,11 @@
 #include "Engine_Math.h"
 #include "Engine_Random.h"
 #include "Engine_Renderer.h"
-#include "Engine_RenderGroup.h"
-#include "World_Map.h"
 #include "Engine.h"
 
 #include "Engine_Memory.cpp"
 #include "Engine_Math.cpp"
-#include "Engine_RenderGroup.cpp"
 #include "Engine_Renderer.cpp"
-#include "World_Map.cpp"
 
 engine_mesh
 Mesh_CreateCube(memory_block* block)
@@ -42,18 +38,19 @@ Mesh_CreateCube(memory_block* block)
 	result.Triangles[30] =  5; result.Triangles[31] =  4; result.Triangles[32] =  1; 
 	result.Triangles[33] =  5; result.Triangles[34] =  1; result.Triangles[35] =  0; 
 	
-	result.Vertices = MemoryBlock_PushArray(block, 8, engine_vertex);
+	result.VertexCount = 8;
+	result.Vertices = MemoryBlock_PushArray(block, result.VertexCount, v3);
 	
-	result.Vertices[0]  = { -0.5f, -0.5f, 0.5f,   0.0f, 0.0f, 1.0f };//0
-	result.Vertices[1] = {  0.5f, -0.5f, 0.5f,   0.0f, 0.0f, 1.0f };//1
-	result.Vertices[2] = {  0.5f,  0.5f, 0.5f,   0.0f, 0.0f, 1.0f };//2
+	result.Vertices[0]  = { -0.5f, -0.5f, 0.5f };//0
+	result.Vertices[1] = {  0.5f, -0.5f, 0.5f };//1
+	result.Vertices[2] = {  0.5f,  0.5f, 0.5f };//2
 	
-	result.Vertices[3] = { -0.5f,  0.5f, 0.5f,   0.0f, 0.0f, 1.0f };//3
+	result.Vertices[3] = { -0.5f,  0.5f, 0.5f };//3
 	//BACK
-	result.Vertices[4] = {  0.5f, -0.5f, -0.5f,   0.0f, 0.0f, -1.0f };//4
-	result.Vertices[5] = { -0.5f, -0.5f, -0.5f,   0.0f, 0.0f, -1.0f };//5
-	result.Vertices[6] = { -0.5f,  0.5f, -0.5f,   0.0f, 0.0f, -1.0f };//6
-	result.Vertices[7] = {  0.5f,  0.5f, -0.5f,   0.0f, 0.0f, -1.0f };//7
+	result.Vertices[4] = {  0.5f, -0.5f, -0.5f };//4
+	result.Vertices[5] = { -0.5f, -0.5f, -0.5f };//5
+	result.Vertices[6] = { -0.5f,  0.5f, -0.5f };//6
+	result.Vertices[7] = {  0.5f,  0.5f, -0.5f };//7
 	
 	return(result);
 }
@@ -65,7 +62,8 @@ Mesh_CreatePlane(memory_block* block, s32 width, s32 depth)
 	
 	result.TriangleCount = 6 * (width) * (depth);
 	result.Triangles = MemoryBlock_PushArray(block, result.TriangleCount, s32);
-	result.Vertices = MemoryBlock_PushArray(block, (width + 1) * (depth + 1), engine_vertex);
+	result.VertexCount = (width + 1) * (depth + 1);
+	result.Vertices = MemoryBlock_PushArray(block, result.VertexCount, v3);
 	
 	f32 vertexX = -width * 0.5f;
 	f32 vertexZ = depth * 0.5f;
@@ -75,7 +73,7 @@ Mesh_CreatePlane(memory_block* block, s32 width, s32 depth)
 	{
 		for(s32 x = 0; x <= width; ++x)
 		{
-			result.Vertices[vi++].Position = V3((f32)x + vertexX, 0, vertexZ - (f32)z);
+			result.Vertices[vi++] = V3((f32)x + vertexX, 0, vertexZ - (f32)z);
 		}
 	}
 	
@@ -113,104 +111,75 @@ Mesh_CreateRectangle(memory_block* block)
 	result.Triangles[0 ] =  0; result.Triangles[1 ] =  1; result.Triangles[2 ] =  2; 
 	result.Triangles[3 ] =  0; result.Triangles[4 ] =  2; result.Triangles[5 ] =  3;
 	
-	result.Vertices = MemoryBlock_PushArray(block, 4, engine_vertex);
-	result.Vertices[0].Position = { -0.5f, -0.5f, 0.5f };//0
-	result.Vertices[1].Position = {  0.5f, -0.5f, 0.5f };//1
-	result.Vertices[2].Position = {  0.5f,  0.5f, 0.5f };//2
-	result.Vertices[3].Position = { -0.5f,  0.5f, 0.5f };//3
+	result.VertexCount = 4;
+	result.Vertices = MemoryBlock_PushArray(block, result.VertexCount, v3);
+	result.Vertices[0] = { -0.5f, -0.5f, 0.5f };//0
+	result.Vertices[1] = {  0.5f, -0.5f, 0.5f };//1
+	result.Vertices[2] = {  0.5f,  0.5f, 0.5f };//2
+	result.Vertices[3] = { -0.5f,  0.5f, 0.5f };//3
 	
 	return(result);
 }
 
 inline void
-RotateCamera(engine_state* state, v2 rotation)
+UpdateCamera(engine_state* state, v3 movement, v2 rotation)
 {
-	state->Camera.Rotation += rotation;
+	state->CameraPosition += movement;
+	state->CameraRotation += rotation;
 	
-	f32 pitchSin = Math_Sin(state->Camera.Rotation.Y);
-	f32 pitchCos = Math_Cos(state->Camera.Rotation.Y);
-	f32 yawSin = Math_Sin(state->Camera.Rotation.X);
-	f32 yawCos = Math_Cos(state->Camera.Rotation.X);
+	f32 pitchSin = Math_Sin(state->CameraRotation.Y);
+	f32 pitchCos = Math_Cos(state->CameraRotation.Y);
+	f32 yawSin = Math_Sin(state->CameraRotation.X);
+	f32 yawCos = Math_Cos(state->CameraRotation.X);
 	
-	state->Camera.AxisX = Math_NormalizedV3({ yawCos, 0, -yawSin });
-	state->Camera.AxisZ =  Math_NormalizedV3({ yawSin * pitchCos, -pitchSin, pitchCos * yawCos });
-	state->Camera.AxisY = Math_CrossProductV3(state->Camera.AxisZ, state->Camera.AxisX);
-}
-void
-SetCamera(engine_state* state, world_position newCameraPosition)
-{
-	world_difference cameraDifference = World_Subtract(state->WorldMap, 
-													   newCameraPosition, state->Camera.Position);
-	state->Camera.Position = newCameraPosition;
+	v3 axisX = Math_NormalizedV3({ yawCos, 0, -yawSin });
+	v3 axisZ = Math_NormalizedV3({ yawSin * pitchCos, -pitchSin, pitchCos * yawCos });
+	v3 axisY = Math_CrossProductV3(axisZ, axisX);
 	
-	v3 dimensions;
-	dimensions.Width = state->WorldMap->ChunkSideInMeters * 2;
-	dimensions.Height = state->WorldMap->ChunkSideInMeters * 2;
-	dimensions.Depth = state->WorldMap->ChunkSideInMeters * 2;
-	cube_bounds cameraBounds = Math_GetCubeBoundsCenter({}, dimensions);
-	World_OffsetAndValidateEntityFrequency(state, cameraDifference.Delta, cameraBounds);
-	
-	world_position min = World_MapIntoChunkSpace(state->WorldMap, 
-												 newCameraPosition, 
-												 Math_GetMinCubeBounds(cameraBounds));
-	
-	world_position max = World_MapIntoChunkSpace(state->WorldMap, 
-												 newCameraPosition, 
-												 Math_GetMaxCubeBounds(cameraBounds));
-	
-	for(s32 z = min.Chunk.Z; z <= max.Chunk.Z; ++z)
-	{
-		for(s32 y = min.Chunk.Y; y <= max.Chunk.Y; ++y)
-		{
-			for(s32 x = min.Chunk.X; x <= max.Chunk.X; ++x)
-			{
-				world_chunk* chunk = World_GetChunkFrom(state->WorldMap, x, y, z);
-				
-				if(chunk)
-				{
-					for(world_entity_block* block = &chunk->FirstBlock; 
-						block; block = block->Next)
-					{
-						for(s32 index = 0; index < block->EntityCount; ++index)
-						{
-							World_MakeEntityHigh(state, block->LowEntityIndex[index]);
-						}
-					}//for(world_entity_block* block = &chunk->EntityBlock; block; block = block->Next)
-				}//if(chunk)
-			}//for(s32 x = min.Chunk.X; x <= max.Chunk.X; ++x)
-		}//for(s32 y = min.Chunk.Y; y <= max.Chunk.Y; ++y)
-	}//for(s32 z = min.Chunk.Z; z <= max.Chunk.Z; ++z)
-	
-	Assert(World_ValidateEntityPairs(state));
+	state->Camera.Row1 = V4(axisX, 0);
+	state->Camera.Row2 = V4(axisY, 0);
+	state->Camera.Row3 = V4(axisZ, 0);
+	state->Camera.Row4 = {0, 0, 0, 1};
 }
 
 inline void
 InitializeCamera(engine_state* state,
-				 render_group* renderGroup, 
-				 s32 screenWidth, s32 screenHeight,
+				 f32 fieldOfView, f32 nearPlane, f32 farPlane,
+				 s32 screenLeft, s32 screenRight,
+				 s32 screenTop, s32 screenBottom,
 				 v3 position, v2 rotation)
 {
-	f32 farPlane = 100.0f;
-	f32 nearPlane = 0.1f;
 	
-	f32 fieldOfView = 60.0f;
-	RenderGroup_SetPerspectiveProjection(renderGroup, fieldOfView,
-										 farPlane, nearPlane,
-										 0, screenWidth, 0, screenHeight);
+	state->FieldOfView = fieldOfView;
+	state->NearPlane = nearPlane;
+	state->FarPlane = farPlane;
+	f32 screenWidth = (screenRight - screenLeft);
+    f32 screenHeight = (screenBottom - screenTop);
 	
-	RotateCamera(state, rotation);
-	state->Camera.Position = {};
-	world_position newPosition = World_MapIntoChunkSpace(state->WorldMap, 
-														 {}, 
-														 position);
-	SetCamera(state, newPosition);
+	f32 windowAspectRatio = (f32)screenWidth / (f32)screenHeight;
+	f32 scale = (nearPlane * Math_Tan(DegreesToRadians(fieldOfView * 0.5f)));
+	f32 viewRight = windowAspectRatio * scale;
+	f32 viewLeft = -viewRight;
+	f32 viewTop = scale;
+	f32 viewBottom = -viewTop;
+	
+	f32 a =  (2.0f * nearPlane) / (viewRight - viewLeft);
+	f32 b = -(2.0f * nearPlane) / (viewTop - viewBottom);
+	f32 c =  farPlane / (farPlane - nearPlane);
+	f32 d =  (-farPlane * nearPlane) / (farPlane - nearPlane);
+	
+	state->Perspective.Row1 = { a,  0,  0,  0  };
+	state->Perspective.Row2 = { 0,  b,  0,  0  };
+	state->Perspective.Row3 = { 0,  0,  c,  d  };
+	state->Perspective.Row4 = { 0,  0, -1,  0  };
+	
+	UpdateCamera(state, position, rotation);
 }
 
 extern "C"
 ENGINE_UPDATE(EngineUpdate)
 {
 	engine_state* state = (engine_state*)memory->Persistent;
-	render_group* renderGroup = &state->RenderGroup;
 	platform_keyboard* keyboard = &input->Keyboard;
 	
 	if(memory->IsInitialized == FALSE)
@@ -223,17 +192,11 @@ ENGINE_UPDATE(EngineUpdate)
 		state->Rectangle = Mesh_CreateRectangle(&state->WorldMemory);
 		state->Plane = Mesh_CreatePlane(&state->WorldMemory, 10, 10);
 		
-		RenderGroup_Initialize(renderGroup, 
-							   memory->TransientSize,
-							   memory->Transient);
-		
-		World_Initialize(state, 16);
-		World_Build(state);
-		
 		InitializeCamera(state,
-						 renderGroup, 
-						 buffer->Color.Width, buffer->Color.Height,
-						 {0, 2, 4}, {});
+						 60, 0.1f, 100.0f,
+						 0, buffer->Color.Width,
+						 0, buffer->Color.Height,
+						 {0, 0, 10}, {});
 		
 		memory->IsInitialized = TRUE;
 	}
@@ -241,12 +204,12 @@ ENGINE_UPDATE(EngineUpdate)
 	v3 movement = {};
 	v2 rotation = {};
 	
-	if(keyboard->A.IsDown) { movement -= state->Camera.AxisX; }
-	if(keyboard->D.IsDown) { movement += state->Camera.AxisX; }
-	if(keyboard->E.IsDown) { movement += state->Camera.AxisY; }
-	if(keyboard->Q.IsDown) { movement -= state->Camera.AxisY; }
-	if(keyboard->S.IsDown) { movement += state->Camera.AxisZ; }
-	if(keyboard->W.IsDown) { movement -= state->Camera.AxisZ; }
+	if(keyboard->A.IsDown) { movement -= state->Camera.Row1.XYZ; }
+	if(keyboard->D.IsDown) { movement += state->Camera.Row1.XYZ; }
+	if(keyboard->E.IsDown) { movement += state->Camera.Row2.XYZ; }
+	if(keyboard->Q.IsDown) { movement -= state->Camera.Row2.XYZ; }
+	if(keyboard->S.IsDown) { movement += state->Camera.Row3.XYZ; }
+	if(keyboard->W.IsDown) { movement -= state->Camera.Row3.XYZ; }
 	
 	if(keyboard->Left.IsDown)  { rotation.X =  1; }
 	if(keyboard->Right.IsDown) { rotation.X = -1; }
@@ -254,78 +217,121 @@ ENGINE_UPDATE(EngineUpdate)
 	if(keyboard->Up.IsDown)    { rotation.Y =  1; }
 	
 	
-	f32 rotationSpeed = 2.0f;
-	RotateCamera(state, rotation * time->Delta * rotationSpeed);
+	UpdateCamera(state, movement * 6 * time->Delta, rotation * 2 * time->Delta);
 	
-	if((movement.X != 0) || (movement.Y != 0) || (movement.Z != 0) )
-	{
-		f32 cameraMovementSpeed = 6.0f;
-		//cameraMovementSpeed = state->WorldMap->ChunkSideInMeters;
-		
-		world_position newCameraPosition = World_MapIntoChunkSpace(state->WorldMap, 
-																   state->Camera.Position, 
-																   (movement * cameraMovementSpeed * time->Delta));
-		SetCamera(state, newCameraPosition);
-	}
+	ClearBitmap(&buffer->Color, {});
+	ClearDepthBuffer(&buffer->Depth, 0.0f);
 	
-	
-	renderGroup->CameraBasis.AxisX = state->Camera.AxisX;
-	renderGroup->CameraBasis.AxisY = state->Camera.AxisY;
-	renderGroup->CameraBasis.AxisZ = state->Camera.AxisZ;
-	renderGroup->CameraBasis.Position = {};
-	
-	RenderGroup_UpdateCameraToProjection(renderGroup, 
-										 state->Camera.AxisX,
-										 state->Camera.AxisY,
-										 state->Camera.AxisZ);
-	RenderGroup_Reset(renderGroup);
-	RenderGroup_PushClearScreen(renderGroup, {0.1f, 0.1f, 0.1f, 0});
-	
+	engine_mesh* mesh = &state->Rectangle;
 	local_persist f32 elapsedTime = 0;
 	elapsedTime += time->Delta;
+	f32 c = Math_Cos(elapsedTime);
+	f32 s = Math_Sin(elapsedTime);
 	
-	for(s32 index = 1;
-		index < state->HighEntityCount;
-		++index)
+	m4x4 model;
+	model.Row1 = {1, 0, 0, -state->CameraPosition.X};
+	model.Row2 = {0, 1, 0, -state->CameraPosition.Y};
+	model.Row3 = {0, 0, 1, -state->CameraPosition.Z};
+	model.Row4 = {0, 0, 0, 1};
+	
+	m4x4 viewBasis = Math_MultiplyM4x4(&state->Camera, &model);
+	m4x4 clipBasis = Math_MultiplyM4x4(&state->Perspective, &viewBasis); 
+	
+	
+	v2 uv0 = { 0, 0 };
+	v2 uv1 = { 1, 0 };
+	v2 uv2 = { 1, 1 };
+	v2 uv3 = { 0, 1 };
+	
+	u32 H = 0xFFFFFFFF;
+	u32 R = 0xFF0000FF;
+	local_persist u32 pixels[16 * 16] = 
 	{
-		world_high_entity* entity = (state->HighEntities + index);
-		world_low_entity* lowEntity = World_GetLow(state, entity->LowIndex);
-		v4 color = lowEntity->Color;
+		H, H, H, H, H, H, H, H, 0, 0, 0, 0, 0, 0, 0, 0,
+		H, H, H, H, H, H, H, H, 0, 0, 0, 0, 0, 0, 0, 0,
+		H, H, H, H, H, H, H, H, 0, 0, 0, 0, 0, 0, 0, 0,
+		H, H, H, H, H, H, H, H, 0, 0, 0, 0, 0, 0, 0, 0,
+		H, H, H, H, H, H, H, H, 0, 0, 0, 0, 0, 0, 0, 0,
+		H, H, H, H, H, H, H, H, 0, 0, 0, 0, 0, 0, 0, 0,
+		H, H, H, H, H, H, H, H, 0, 0, 0, 0, 0, 0, 0, 0,
+		H, H, H, H, H, H, H, H, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, H, H, H, H, H, H, H, H,
+		0, 0, 0, 0, 0, 0, 0, 0, H, H, H, H, H, H, H, H,
+		0, 0, 0, 0, 0, 0, 0, 0, H, H, R, R, H, H, H, H,
+		0, 0, 0, 0, 0, 0, 0, 0, H, H, R, R, H, H, H, H,
+		0, 0, 0, 0, 0, 0, 0, 0, H, H, H, H, H, H, H, H,
+		0, 0, 0, 0, 0, 0, 0, 0, H, H, H, H, H, H, H, H,
+		0, 0, 0, 0, 0, 0, 0, 0, H, H, H, H, H, H, H, H,
+		0, 0, 0, 0, 0, 0, 0, 0, H, H, H, H, H, H, H, H,
+	};
+	render_bitmap texture;
+	texture.Width = 16;
+	texture.Height = 16;
+	texture.Pixels = pixels;
+	
+	for(s32 index = 0; index < 3; index += 3)
+	{
+		//Transform vertices into clipspace
+		v4 vertex0 = Math_MultiplyM4x4(&clipBasis, mesh->Vertices[mesh->Triangles[index + 0]]);
+		v4 vertex1 = Math_MultiplyM4x4(&clipBasis, mesh->Vertices[mesh->Triangles[index + 1]]);
+		v4 vertex2 = Math_MultiplyM4x4(&clipBasis, mesh->Vertices[mesh->Triangles[index + 2]]);
 		
-		switch(lowEntity->Type)
+		vertex0.XYZ *= 1.0f / vertex0.W;
+		vertex1.XYZ *= 1.0f / vertex1.W;
+		vertex2.XYZ *= 1.0f / vertex2.W;
+		
+		f32 oneOverCameraZ0 = 1.0f / vertex0.W;
+		f32 oneOverCameraZ1 = 1.0f / vertex1.W;
+		f32 oneOverCameraZ2 = 1.0f / vertex2.W;
+		
+		vertex0.X = (vertex0.X + 1) * 0.5f * buffer->Color.Width;
+		vertex0.Y = (vertex0.Y + 1) * 0.5f * buffer->Color.Height;
+		
+		vertex1.X = (vertex1.X + 1) * 0.5f * buffer->Color.Width;
+		vertex1.Y = (vertex1.Y + 1) * 0.5f * buffer->Color.Height;
+		
+		vertex2.X = (vertex2.X + 1) * 0.5f * buffer->Color.Width;
+		vertex2.Y = (vertex2.Y + 1) * 0.5f * buffer->Color.Height;
+		
+		if(Math_SignedAreaOfTriangle(vertex0.XY, vertex1.XY, vertex2.XY) >= 0.0f)
 		{
-			case type_entity_floor:
-			{
-				render_basis basis;
-				basis.AxisX = V3(1, 0, 0);
-				basis.AxisY = V3(0, 1, 0);
-				basis.AxisZ = V3(0, 0, 1);
-				basis.Position = entity->Position;
-				RenderGroup_PushMesh(renderGroup, &state->Plane, basis, color);
-			}break;
-			case type_entity_wall:
-			{
-				render_basis basis;
-				basis.AxisX = V3(1, 0, 0);
-				basis.AxisY = V3(0, 1, 0);
-				basis.AxisZ = V3(0, 0, 1 );
-				basis.Position = entity->Position;
-				RenderGroup_PushMesh(renderGroup, &state->Cube, basis, color);
-			}break;
-			InvalidDefaultCase;
-		}
-	}
-	
-	Render_Buffer(buffer, renderGroup);
-	
-#if 0
-	local_persist f32 counter = 0.0f;
-	counter += time->Delta;
-	if(counter > 1)
-	{
-		counter = 0;
-		printf("%f\n", time->FPS);
-	}
+			
+			ComputeDepthForTriangle(&buffer->Depth, vertex0.XY, vertex1.XY, vertex2.XY,
+									oneOverCameraZ0, oneOverCameraZ1, oneOverCameraZ2);
+			
+			DrawTriangle(&buffer->Color, &buffer->Depth, &texture,
+						 vertex0.XY, vertex1.XY, vertex2.XY, uv0, uv1, uv2,
+						 oneOverCameraZ0, oneOverCameraZ1, oneOverCameraZ2, {0.3f, 0.3f, 0.7f, 1});
+			
+			
+#if 1
+			DrawLine2D(&buffer->Color, vertex0.XY, vertex1.XY, {1, 0, 0, 1});
+			DrawLine2D(&buffer->Color, vertex0.XY, vertex2.XY, {1, 0, 0, 1});
+			DrawLine2D(&buffer->Color, vertex1.XY, vertex2.XY, {1, 0, 0, 1});
 #endif
+			
+		}
+		
+		
+		
+		
+		
+		//clip zed coordinates
+		//retriangulate
+		//transform into ndc
+		//clip x,y
+		//triangulate
+		//transform into screen space
+		//render
+		
+	}
+	
+	
+	
+	
+	if(0)
+	{
+		DepthToColor(buffer);
+	}
 	
 }

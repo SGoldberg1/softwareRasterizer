@@ -5,7 +5,6 @@
 
 struct memory_block
 {
-	s32 Count;
 	s32 Used;
 	s32 Size;
 	u8* Base;
