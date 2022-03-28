@@ -1,6 +1,6 @@
 
 
-internal_function void
+void
 DrawLine2D(render_bitmap* buffer, v2 start, v2 end, v4 color)
 {
 	u32 pixelColor = PackV4ToU32(color);
@@ -79,7 +79,7 @@ ClearDepthBuffer(render_bitmap* buffer, f32 value)
 	}
 }
 
-internal_function void
+void
 DrawRectangle(render_bitmap* buffer,
 			  v2 position, v2 dimensions,
 			  v4 color)

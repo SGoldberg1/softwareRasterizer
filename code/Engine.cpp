@@ -161,36 +161,17 @@ WriteEngineBuffers(debug_file_write* writeFile, engine_buffer* buffers)
 }
 
 render_bitmap
-Debug_ReadBitmap(debug_file_read* readFile, char* fileName)
+ReadBitmap(debug_file_read* readFile, char* fileName)
 {
 	debug_file file = readFile(fileName);
 	render_bitmap result = {};
 	
 	if(file.IsValid)
 	{
-		bitmap_header* header = (bitmap_header*)file.Contents;
-		result.Height = -result.Height;
-		result.Width = header->Width;
-		result.Height = header->Height;
-		result.Pixels = (u8*)header + header->PixelOffset; 
-		
-		// NOTE(Stephen): Gimp stores bitmaps as ARGB, need to swizzle...
-		u32 redChannel = header->RedMask;
-		u32 greenChannel = header->GreenMask;
-		u32 blueChannel = header->BlueMask;
-		u32 alphaChannel = 0xFF000000;
-		
-		u32* startPixel = (u32*)result.Pixels;
-		
-		for(s32 i = 0; i < (result.Width * result.Height); ++i)
-		{
-			*startPixel = (((redChannel & *startPixel)   << 8) |
-						   ((greenChannel & *startPixel) << 8) |
-						   ((blueChannel & *startPixel)  << 8) |
-						   ((alphaChannel & *startPixel) >> 24));
-			++startPixel;
-		}
-		
+		engine_bitmap* bitmap = (engine_bitmap*)file.Contents;
+		result.Width = bitmap->Width;
+		result.Height = bitmap->Height;
+		result.Pixels = (bitmap + 1);
 	}
 	
 	return(result);
@@ -266,7 +247,8 @@ ENGINE_UPDATE(EngineUpdate)
 		state->Rectangle = Mesh_CreateRectangle(&state->WorldMemory);
 		state->Plane = Mesh_CreatePlane(&state->WorldMemory, 10, 10);
 		
-		state->TestBitmap = Debug_ReadBitmap(debug->ReadFile, "./img/test.bmp");
+		state->TestBitmap = ReadBitmap(debug->ReadFile, 
+									   "./assets/images/test.sr");
 		
 		InitializeCamera(state,
 						 60, 0.1f, 100.0f,
@@ -307,10 +289,10 @@ ENGINE_UPDATE(EngineUpdate)
 	f32 s = Math_Sin(elapsedTime);
 	
 	m4x4 model;
-	model.Row1 = {c, -s, 0, -state->CameraPosition.X};
-	model.Row2 = {s, c, 0, -state->CameraPosition.Y};
-	model.Row3 = {0, 0, 1, -state->CameraPosition.Z};
-	model.Row4 = {0, 0, 0, 1};
+	model.Row1 = {c, -s,  0,  -state->CameraPosition.X};
+	model.Row2 = {s,  c,  0,  -state->CameraPosition.Y};
+	model.Row3 = {0,  0,  1,  -state->CameraPosition.Z};
+	model.Row4 = {0,  0,  0,  1};
 	
 	m4x4 viewBasis = Math_MultiplyM4x4(&state->Camera, &model);
 	m4x4 clipBasis = Math_MultiplyM4x4(&state->Perspective, &viewBasis); 
@@ -368,6 +350,7 @@ ENGINE_UPDATE(EngineUpdate)
 		DepthToColor(buffer);
 	}
 	
+#if 0	
 	u32* source = (u32*)state->TestBitmap.Pixels;
 	u32*destination = (u32*)buffer->Color.Pixels;
 	u32* row = destination;
@@ -382,5 +365,18 @@ ENGINE_UPDATE(EngineUpdate)
 		
 		row += buffer->Color.Width;
 	}
+#endif
+	
+	
+#if 0
+	local_persist f32 t = 0;
+	t += time->Delta;
+	
+	if(t > 1)
+	{
+		t = 0;
+		printf("%f\n", time->FPS);
+	}
+#endif
 	
 }
