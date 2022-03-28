@@ -227,6 +227,7 @@ ENGINE_UPDATE(EngineUpdate)
 	engine_mesh* mesh = &state->Rectangle;
 	local_persist f32 elapsedTime = 0;
 	elapsedTime += time->Delta;
+	elapsedTime = 0;
 	f32 c = Math_Cos(elapsedTime);
 	f32 s = Math_Sin(elapsedTime);
 	
@@ -281,9 +282,9 @@ ENGINE_UPDATE(EngineUpdate)
 		vertex1.XYZ *= 1.0f / vertex1.W;
 		vertex2.XYZ *= 1.0f / vertex2.W;
 		
-		f32 oneOverCameraZ0 = 1.0f / vertex0.W;
-		f32 oneOverCameraZ1 = 1.0f / vertex1.W;
-		f32 oneOverCameraZ2 = 1.0f / vertex2.W;
+		f32 cameraZ0 = vertex0.W;
+		f32 cameraZ1 = vertex1.W;
+		f32 cameraZ2 = vertex2.W;
 		
 		vertex0.X = (vertex0.X + 1) * 0.5f * buffer->Color.Width;
 		vertex0.Y = (vertex0.Y + 1) * 0.5f * buffer->Color.Height;
@@ -298,18 +299,18 @@ ENGINE_UPDATE(EngineUpdate)
 		{
 			
 			ComputeDepthForTriangle(&buffer->Depth, vertex0.XY, vertex1.XY, vertex2.XY,
-									oneOverCameraZ0, oneOverCameraZ1, oneOverCameraZ2);
+									cameraZ0, cameraZ1, cameraZ2);
 			
 			DrawTriangle(&buffer->Color, &buffer->Depth, &texture,
 						 vertex0.XY, vertex1.XY, vertex2.XY, 
 						 attribute0->UV, attribute1->UV, attribute2->UV,
-						 oneOverCameraZ0, oneOverCameraZ1, oneOverCameraZ2, {0.3f, 0.3f, 0.7f, 1});
+						 cameraZ0, cameraZ1, cameraZ2, {0.3f, 0.3f, 0.7f, 1});
 			
 			
-#if 0
-			DrawLine2D(&buffer->Color, vertex0.XY, vertex1.XY, {1, 0, 0, 1});
-			DrawLine2D(&buffer->Color, vertex0.XY, vertex2.XY, {1, 0, 0, 1});
-			DrawLine2D(&buffer->Color, vertex1.XY, vertex2.XY, {1, 0, 0, 1});
+#if 1
+			DrawLine2D(&buffer->Color, vertex0.XY, vertex1.XY, {0, 1, 0, 1});
+			DrawLine2D(&buffer->Color, vertex0.XY, vertex2.XY, {0, 1, 0, 1});
+			DrawLine2D(&buffer->Color, vertex1.XY, vertex2.XY, {0, 1, 0, 1});
 #endif
 			
 		}

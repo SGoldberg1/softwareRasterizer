@@ -120,9 +120,8 @@ NDCToCameraZ(f32 ndcZ, f32 farPlane, f32 nearPlane)
 internal_function void
 DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_bitmap* texture,
 			 v2 pixel0, v2 pixel1, v2 pixel2, v2 uv0, v2 uv1, v2 uv2,
-			 f32 oneOverCameraZ0, f32 oneOverCameraZ1, f32 oneOverCameraZ2, v4 color)
+			 f32 cameraZ0, f32 cameraZ1, f32 cameraZ2, v4 color)
 {
-	
 	s32 left = Math_RoundF32ToS32(Math_MinF32(pixel0.X, Math_MinF32(pixel1.X, pixel2.X)));
 	s32 right = Math_RoundF32ToS32(Math_MaxF32(pixel0.X, Math_MaxF32(pixel1.X, pixel2.X)));
 	s32 top = Math_RoundF32ToS32(Math_MinF32(pixel0.Y, Math_MinF32(pixel1.Y, pixel2.Y)));
@@ -146,6 +145,16 @@ DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_bitmap* texture
 	
 	f32 oneOverArea = 1.0f / Math_SignedAreaOfTriangle(pixel0, pixel1, pixel2);
 	
+	f32 oneOverCameraZ0 = 1.0f / cameraZ0; 
+	f32 oneOverCameraZ1 = 1.0f / cameraZ1; 
+	f32 oneOverCameraZ2 = 1.0f / cameraZ2;
+	
+#if 1
+	uv0 *= oneOverCameraZ0;
+	uv1 *= oneOverCameraZ1;
+	uv2 *= oneOverCameraZ2;
+#endif
+	
 	for(s32 y = top; y <= bottom; ++y)
 	{
 		colorBufferPixel = colorbufferRow;
@@ -166,22 +175,23 @@ DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_bitmap* texture
 				s *= oneOverArea;
 				
 				f32 z = (oneOverCameraZ0 * s + oneOverCameraZ1 * u + oneOverCameraZ2 * v);
-				
 				if(*depthBufferPixel <= z)
 				{
 					v2 uv;
-					uv.X = u * uv0.X + v * uv1.X + s * uv2.X;
-					uv.Y = u * uv0.Y + v * uv1.Y + s * uv2.Y;
-					
 					uv.X = s * uv0.X + u * uv1.X + v * uv2.X;
 					uv.Y = s * uv0.Y + u * uv1.Y + v * uv2.Y;
+					z = 1.0f / z;
+					
+					uv *= z;
 					
 					v2 texel;
 					texel.X = uv.X * (texture->Width - 1);
 					// TODO(Stephen): We want bottom up textures
 					// Remove y inversion once asset processor is implemented
-					texel.Y = (texture->Height - 1) * ( 1.0f - uv.Y);
-					pixelColor = texturePixel[(s32)texel.Y * 16 + (s32)texel.X];
+					texel.Y = (texture->Height - 1) * (1.0f - uv.Y);
+					
+					pixelColor = 
+						texturePixel[Math_RoundF32ToS32(texel.Y) * 16 + Math_RoundF32ToS32(texel.X)];
 					*colorBufferPixel = pixelColor;
 					
 				}
@@ -200,7 +210,7 @@ DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_bitmap* texture
 internal_function void 
 ComputeDepthForTriangle(render_bitmap* buffer, 
 						v2 pixel0, v2 pixel1, v2 pixel2,
-						f32 oneOverCameraZ0, f32 oneOverCameraZ1, f32 oneOverCameraZ2)
+						f32 cameraZ0, f32 cameraZ1, f32 cameraZ2)
 {
 	s32 left = Math_RoundF32ToS32(Math_MinF32(pixel0.X, Math_MinF32(pixel1.X, pixel2.X)));
 	s32 right = Math_RoundF32ToS32(Math_MaxF32(pixel0.X, Math_MaxF32(pixel1.X, pixel2.X)));
@@ -215,6 +225,10 @@ ComputeDepthForTriangle(render_bitmap* buffer,
 	
 	f32* pixel;
 	f32* row = (f32*)buffer->Pixels + left + top * buffer->Width;
+	
+	f32 oneOverCameraZ0 = 1.0f / cameraZ0; 
+	f32 oneOverCameraZ1 = 1.0f / cameraZ1; 
+	f32 oneOverCameraZ2 = 1.0f / cameraZ2;
 	
 	f32 oneOverArea = 1.0f / Math_SignedAreaOfTriangle(pixel0, pixel1, pixel2);
 	
