@@ -127,8 +127,6 @@ DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_bitmap* texture
 	s32 top = Math_RoundF32ToS32(Math_MinF32(pixel0.Y, Math_MinF32(pixel1.Y, pixel2.Y)));
 	s32 bottom = Math_RoundF32ToS32(Math_MaxF32(pixel0.Y, Math_MaxF32(pixel1.Y, pixel2.Y)));
 	
-	u32 pixelColor = PackV4ToU32(color);
-	
 	//Scissor Rectangle
 	if(left < 0) { left = 0; };
 	if(top < 0) { top = 0; };
@@ -149,11 +147,10 @@ DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_bitmap* texture
 	f32 oneOverCameraZ1 = 1.0f / cameraZ1; 
 	f32 oneOverCameraZ2 = 1.0f / cameraZ2;
 	
-#if 1
+	//Perspective correct interpolation per vertex attribute
 	uv0 *= oneOverCameraZ0;
 	uv1 *= oneOverCameraZ1;
 	uv2 *= oneOverCameraZ2;
-#endif
 	
 	for(s32 y = top; y <= bottom; ++y)
 	{
@@ -181,17 +178,30 @@ DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_bitmap* texture
 					uv.X = s * uv0.X + u * uv1.X + v * uv2.X;
 					uv.Y = s * uv0.Y + u * uv1.Y + v * uv2.Y;
 					z = 1.0f / z;
-					
 					uv *= z;
+					uv.X = uv.X * (texture->Width - 1);
+					uv.Y = (texture->Height - 1) * (uv.Y);
 					
-					v2 texel;
-					texel.X = uv.X * (texture->Width - 1);
-					// TODO(Stephen): We want bottom up textures
-					// Remove y inversion once asset processor is implemented
-					texel.Y = (texture->Height - 1) * (1.0f - uv.Y);
+					u32 texelColor = 
+						texturePixel[Math_RoundF32ToS32(uv.Y) * texture->Width + 
+									 Math_RoundF32ToS32(uv.X)];
 					
-					pixelColor = 
-						texturePixel[Math_RoundF32ToS32(texel.Y) * 16 + Math_RoundF32ToS32(texel.X)];
+					v4 texel;
+					texel.R = (f32)((texelColor >> 24) & 0xFF) * OneOver255;
+					texel.G = (f32)((texelColor >> 16) & 0xFF) * OneOver255;
+					texel.B = (f32)((texelColor >> 8 ) & 0xFF) * OneOver255;
+					
+					u8 redChannel = Math_RoundF32ToU32(Math_Lerp(texel.R, color.R, color.A) * 255.0f);
+					u8 greenChannel = Math_RoundF32ToU32(Math_Lerp(texel.G, color.G, color.A) * 255.0f);
+					u8 blueChannel = Math_RoundF32ToU32(Math_Lerp(texel.B, color.B, color.A) * 255.0f);
+					
+					u32 pixelColor = ((redChannel << 24) |
+									  (greenChannel << 16) |
+									  (blueChannel << 8 ) |
+									  (0));
+					
+					//pixelColor = texelColor;
+					
 					*colorBufferPixel = pixelColor;
 					
 				}

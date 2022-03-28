@@ -36,17 +36,39 @@ typedef uintptr_t u32ptr;
 
 #define ArrayLength(array) (sizeof(array) / sizeof(array[0]))
 
+struct debug_file
+{
+	b32 IsValid;
+	s32 FileSize;
+	void* Contents;
+};
+
+typedef debug_file debug_file_read(char* fileName); 
+typedef void debug_file_write(char* fileName, s32 size, void* contents, char* mode); 
+typedef void debug_file_free(debug_file* file); 
+
+struct engine_debug
+{
+	debug_file_free* FreeFile;
+	debug_file_read* ReadFile;
+	debug_file_write* WriteFile;
+};
+
 #if ENGINE_DEBUG
 #define Assert(statement) if(!(statement)) { int* x = 0; *x = 0; }
 #define ValidateAlignment16(address) Assert(((u32ptr)(address) & 0xF) == 0)
+#define InvalidDefaultCase default: { Assert(!"Invalid Default Case") }break;
+#define InvalidCodePath Assert(!"Invalid Code Path")
 #else
+#define InvalidDefaultCase
+#define InvalidCodePath
 #define Assert(statement)
 #define ValidateAlignment16(address)
 #endif
 
-#define InvalidCodePath Assert(!"Invalid Code Path")
+
 #define EmptyDefaultCase default:{}break
-#define InvalidDefaultCase default: { Assert(!"Invalid Default Case") }break;
+
 
 struct platform_memory
 {
@@ -70,7 +92,7 @@ struct platform_keyboard_button
 	b32 IsDown;
 };
 
-#define KEYBOARD_BUTTON_COUNT (6)
+#define KEYBOARD_BUTTON_COUNT (11)
 union platform_keyboard
 {
 	platform_keyboard_button Buttons[KEYBOARD_BUTTON_COUNT];
@@ -82,10 +104,13 @@ union platform_keyboard
 		platform_keyboard_button Q;
 		platform_keyboard_button S;
 		platform_keyboard_button W;
+		
 		platform_keyboard_button Left;
 		platform_keyboard_button Right;
 		platform_keyboard_button Down;
 		platform_keyboard_button Up;
+		
+		platform_keyboard_button F1;
 	};
 };
 
@@ -101,16 +126,20 @@ struct render_bitmap
 	void* Pixels;
 };
 
-struct engine_buffer
+union engine_buffer
 {
-	render_bitmap Color;
-	render_bitmap Depth;
+	struct
+	{
+		render_bitmap Color;
+		render_bitmap Depth;
+	};
 };
 
 #define ENGINE_UPDATE(name) void name(engine_buffer* buffer,   \
 platform_memory* memory, \
 platform_input* input,   \
-platform_time* time)
+platform_time* time,     \
+engine_debug* debug)
 
 typedef ENGINE_UPDATE(engine_update);
 

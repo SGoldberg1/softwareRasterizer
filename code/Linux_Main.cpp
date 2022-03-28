@@ -20,101 +20,63 @@ struct linux_engine_library
 	engine_update* Update;
 };
 
-#pragma pack(push, 1)
-struct bitmap_header
-{
-    s16 ID;
-    s32 FileSize;
-    s16 Reserved1;
-    s16 Reserved2;
-    s32 PixelOffset;
-    s32 HeaderSize;
-    s32 Width;
-    s32 Height;
-    s16 Planes;
-    s16 BitsPerPixel;
-    s32 Compression;
-    s32 ImageSize;
-    s32 PixelPerMeterX;
-    s32 PixelPerMeterY;
-    s32 ColorPalette;
-    s32 ImportantColors;
-	
-	u32 RedMask;
-    u32 GreenMask;
-    u32 BlueMask;
-	
-};
-#pragma pack(pop)
-
 global_variable s32 GlobalWindowWidth = 1920;
 global_variable s32 GlobalWindowHeight = 1080;
 global_variable b32 GlobalIsRunning = TRUE;
 global_variable engine_buffer GlobalEngineOffscreenBuffer = {};
 global_variable u64 GlobalPerformanceFrequency = 0;
 
-
-internal_function void
-WriteGlobalEngineBuffers(void)
+internal_function debug_file
+Linux_DebugReadFile(char* fileName)
 {
-	FILE* colorFile = fopen("../misc/colorBuffer.bmp", "w");
-	FILE* depthFile = fopen("../misc/depthBuffer.bmp", "w");
-	FILE* depthF32File = fopen("../misc/depthBuffer(f32).bmp", "w");
+	debug_file result = {};
+	FILE* file = fopen(fileName, "r");
 	
-	bitmap_header bitmap = {};
-	bitmap.ID = 0x4D42;
-	bitmap.FileSize = sizeof(bitmap_header) + Bytes(4) * (GlobalEngineOffscreenBuffer.Color.Width *
-														  GlobalEngineOffscreenBuffer.Color.Height);
-	bitmap.PixelOffset = sizeof(bitmap_header);
-	
-	bitmap.HeaderSize = sizeof(bitmap_header) - Bytes(14);
-	bitmap.Width = GlobalEngineOffscreenBuffer.Color.Width;
-	bitmap.Height = -GlobalEngineOffscreenBuffer.Color.Height;
-	bitmap.Planes = 1;
-	bitmap.BitsPerPixel = 32;
-	bitmap.Compression = 3;
-	bitmap.ImageSize = Bytes(4) * (GlobalEngineOffscreenBuffer.Color.Width *
-								   GlobalEngineOffscreenBuffer.Color.Height);
-	bitmap.PixelPerMeterX = 2835;
-	bitmap.PixelPerMeterY = 2835;
-	
-	bitmap.RedMask   = 0xFF000000;
-	bitmap.GreenMask = 0x00FF0000;
-	bitmap.BlueMask  = 0x0000FF00;
-	
-	if(colorFile)
+	if(file)
 	{
-		fwrite(&bitmap, sizeof(bitmap_header), 1, colorFile);
-		fwrite(GlobalEngineOffscreenBuffer.Color.Pixels, bitmap.ImageSize, 1, colorFile);
-		fclose(colorFile);
-	}
-	
-	if(depthFile)
-	{
+		fseek(file, 0, SEEK_END);
+		result.FileSize = ftell(file);
+		fseek(file, 0, SEEK_SET);
 		
-		s32 size = GlobalEngineOffscreenBuffer.Color.Width * GlobalEngineOffscreenBuffer.Color.Height;
-		u32* color = (u32*)GlobalEngineOffscreenBuffer.Color.Pixels;
-		f32* depth = (f32*)GlobalEngineOffscreenBuffer.Depth.Pixels;
+		result.Contents = SDL_malloc(result.FileSize);
 		
-		for(s32 i = 0; i < size; ++i)
+		if(result.Contents)
 		{
-			f32 value = *depth++;
-			u32 channel = (u32)((value * 255.0f) + 0.5f);
-			*color++ = (channel << 24 | channel << 16 | channel << 8 | channel << 0);
+			if(fread(result.Contents, result.FileSize, 1, file) == 1)
+			{
+				result.IsValid = TRUE;
+			}
 		}
 		
-		fwrite(&bitmap, sizeof(bitmap_header), 1, depthFile);
-		fwrite(GlobalEngineOffscreenBuffer.Color.Pixels, bitmap.ImageSize, 1, depthFile);
-		fclose(depthFile);
+		
+		fclose(file);
 	}
 	
-	if(depthF32File)
+	
+	return(result);
+}
+
+internal_function void
+Linux_DebugWriteFile(char* fileName, s32 size, void* contents, char* mode)
+{
+	FILE* file = fopen(fileName, mode);
+	
+	if(file)
 	{
-		fwrite(&bitmap, sizeof(bitmap_header), 1, depthF32File);
-		fwrite(GlobalEngineOffscreenBuffer.Depth.Pixels, bitmap.ImageSize, 1, depthF32File);
-		fclose(depthF32File);
+		fwrite(contents, size, 1, file);
+		fclose(file);
 	}
 	
+}
+
+internal_function void
+Linux_DebugFreeFile(debug_file* file)
+{
+	if(file->Contents)
+	{
+		SDL_free(file->Contents);
+	}
+	file->IsValid = FALSE;
 }
 
 internal_function void
@@ -138,14 +100,13 @@ Linux_ResizeOffscreenBuffer(engine_buffer* buffer,
 	buffer->Depth.Width = width;
 	buffer->Depth.Height = height;
 	buffer->Depth.Pixels = SDL_malloc(width * sizeof(f32) * height);
-	
 }
 
 internal_function inline void
 Linux_UpdateButton(platform_keyboard_button* button, 
-				   b32 isDown)
+				   b32 isDown, b32 isUp = FALSE)
 {
-	button->IsUp = !isDown;
+	button->IsUp = isUp;
 	button->IsDown = isDown;
 }
 
@@ -182,8 +143,8 @@ Linux_ProcessEventQueue(platform_input* input)
 					case SDLK_UP: { Linux_UpdateButton(&input->Keyboard.Up, isDown); }break; 
 					case SDLK_DOWN: { Linux_UpdateButton(&input->Keyboard.Down, isDown); }break; 
 					
+					case SDLK_F1: { Linux_UpdateButton(&input->Keyboard.F1, isDown, isUp); }break; 
 					case SDLK_F5: { if(isUp) { RUNBUILD_SCRIPT; } }break; 
-					case SDLK_F1: { if(isUp) { WriteGlobalEngineBuffers(); } }break; 
 					
 					EmptyDefaultCase;
 				}
@@ -261,6 +222,11 @@ main(int argc, char** args)
 	
 	linux_engine_library engineLibrary = {};
 	
+	engine_debug engineDebug;
+	engineDebug.ReadFile = Linux_DebugReadFile;
+	engineDebug.FreeFile = Linux_DebugFreeFile;
+	engineDebug.WriteFile = Linux_DebugWriteFile;
+	
 	platform_memory platformMemory = {};
 	platform_time platformTime = {};
 	platform_input platformInput = {};
@@ -283,8 +249,8 @@ main(int argc, char** args)
 			
 			if(renderer)
 			{
-				s32 bufferWidth = GlobalWindowWidth / 2;
-				s32 bufferHeight = GlobalWindowHeight / 2;
+				s32 bufferWidth = GlobalWindowWidth / 4;
+				s32 bufferHeight = GlobalWindowHeight / 4;
 				
 				SDL_RenderSetLogicalSize(renderer, 
 										 GlobalWindowWidth, 
@@ -318,11 +284,17 @@ main(int argc, char** args)
 							engineLibrary = Linux_LoadEngineLibrary("./engine.so");
 						}
 						
+						for(s32 i = 0; i < ArrayLength(platformInput.Keyboard.Buttons); ++i)
+						{
+							platformInput.Keyboard.Buttons[i].IsUp = FALSE;
+						}
+						
 						Linux_ProcessEventQueue(&platformInput);
 						engineLibrary.Update(&GlobalEngineOffscreenBuffer,
 											 &platformMemory,
 											 &platformInput,
-											 &platformTime);
+											 &platformTime,
+											 &engineDebug);
 						
 						SDL_UpdateTexture(texture, 0,
 										  GlobalEngineOffscreenBuffer.Color.Pixels, 

@@ -97,7 +97,6 @@ Mesh_CreatePlane(memory_block* block, s32 width, s32 depth)
 		++vi;
 	}
 	
-	
 	return(result);
 }
 
@@ -119,6 +118,80 @@ Mesh_CreateRectangle(memory_block* block)
 	result.Vertices[1] = {  0.5f, -0.5f, 0.5f,  0.0f, 0.0f, 1.0f,  1.0f, 0.0f };//1
 	result.Vertices[2] = {  0.5f,  0.5f, 0.5f,  0.0f, 0.0f, 1.0f,  1.0f, 1.0f };//2
 	result.Vertices[3] = { -0.5f,  0.5f, 0.5f,  0.0f, 0.0f, 1.0f,  0.0f, 1.0f };//3
+	
+	return(result);
+}
+
+void
+WriteEngineBuffers(debug_file_write* writeFile, engine_buffer* buffers)
+{
+	//writeFile(fileName);
+	bitmap_header header = {};
+	header.ID = 0x4D42;
+	header.PixelOffset = sizeof(bitmap_header);
+	header.HeaderSize = sizeof(bitmap_header) - Bytes(14);
+	header.Planes = 1;
+	header.Compression = 3;
+	header.PixelPerMeterX = 2835;
+	header.PixelPerMeterY = 2835;
+	header.RedMask   = 0xFF000000;
+	header.GreenMask = 0x00FF0000;
+	header.BlueMask  = 0x0000FF00;
+	header.BitsPerPixel = 32;
+	header.FileSize = sizeof(bitmap_header) + Bytes(4) * (buffers->Color.Width *
+														  buffers->Color.Height);
+	header.Width = buffers->Color.Width;
+	header.Height = -buffers->Color.Height;
+	header.ImageSize = Bytes(4) * (buffers->Color.Width *
+								   buffers->Color.Height);
+	
+	writeFile("../misc/colorBuffer.bmp", sizeof(bitmap_header), &header, "w");
+	writeFile("../misc/colorBuffer.bmp", buffers->Color.Width * buffers->Color.Height * sizeof(u32), 
+			  buffers->Color.Pixels, "a");
+	
+	DepthToColor(buffers);
+	
+	writeFile("../misc/depthBuffer.bmp", sizeof(bitmap_header), &header, "w");
+	writeFile("../misc/depthBuffer.bmp", buffers->Color.Width * buffers->Color.Height * sizeof(u32), 
+			  buffers->Color.Pixels, "a");
+	
+	writeFile("../misc/depthBuffer(f32).bmp", sizeof(bitmap_header), &header, "w");
+	writeFile("../misc/depthBuffer(f32).bmp", buffers->Color.Width * buffers->Color.Height * sizeof(f32), 
+			  buffers->Depth.Pixels, "a");
+}
+
+render_bitmap
+Debug_ReadBitmap(debug_file_read* readFile, char* fileName)
+{
+	debug_file file = readFile(fileName);
+	render_bitmap result = {};
+	
+	if(file.IsValid)
+	{
+		bitmap_header* header = (bitmap_header*)file.Contents;
+		result.Height = -result.Height;
+		result.Width = header->Width;
+		result.Height = header->Height;
+		result.Pixels = (u8*)header + header->PixelOffset; 
+		
+		// NOTE(Stephen): Gimp stores bitmaps as ARGB, need to swizzle...
+		u32 redChannel = header->RedMask;
+		u32 greenChannel = header->GreenMask;
+		u32 blueChannel = header->BlueMask;
+		u32 alphaChannel = 0xFF000000;
+		
+		u32* startPixel = (u32*)result.Pixels;
+		
+		for(s32 i = 0; i < (result.Width * result.Height); ++i)
+		{
+			*startPixel = (((redChannel & *startPixel)   << 8) |
+						   ((greenChannel & *startPixel) << 8) |
+						   ((blueChannel & *startPixel)  << 8) |
+						   ((alphaChannel & *startPixel) >> 24));
+			++startPixel;
+		}
+		
+	}
 	
 	return(result);
 }
@@ -151,7 +224,6 @@ InitializeCamera(engine_state* state,
 				 s32 screenTop, s32 screenBottom,
 				 v3 position, v2 rotation)
 {
-	
 	state->FieldOfView = fieldOfView;
 	state->NearPlane = nearPlane;
 	state->FarPlane = farPlane;
@@ -194,6 +266,8 @@ ENGINE_UPDATE(EngineUpdate)
 		state->Rectangle = Mesh_CreateRectangle(&state->WorldMemory);
 		state->Plane = Mesh_CreatePlane(&state->WorldMemory, 10, 10);
 		
+		state->TestBitmap = Debug_ReadBitmap(debug->ReadFile, "./img/test.bmp");
+		
 		InitializeCamera(state,
 						 60, 0.1f, 100.0f,
 						 0, buffer->Color.Width,
@@ -218,6 +292,7 @@ ENGINE_UPDATE(EngineUpdate)
 	if(keyboard->Down.IsDown)  { rotation.Y = -1; }
 	if(keyboard->Up.IsDown)    { rotation.Y =  1; }
 	
+	if(keyboard->F1.IsUp) { WriteEngineBuffers(debug->WriteFile, buffer); }
 	
 	UpdateCamera(state, movement * 6 * time->Delta, rotation * 2 * time->Delta);
 	
@@ -240,33 +315,6 @@ ENGINE_UPDATE(EngineUpdate)
 	m4x4 viewBasis = Math_MultiplyM4x4(&state->Camera, &model);
 	m4x4 clipBasis = Math_MultiplyM4x4(&state->Perspective, &viewBasis); 
 	
-	
-	u32 H = 0xFFFFFFFF;
-	u32 R = 0xFF0000FF;
-	local_persist u32 pixels[16 * 16] = 
-	{
-		H, H, H, H, H, H, H, H, 0, 0, 0, 0, 0, 0, 0, 0,
-		H, H, H, H, H, H, H, H, 0, 0, 0, 0, 0, 0, 0, 0,
-		H, H, H, H, H, H, H, H, 0, 0, 0, 0, 0, 0, 0, 0,
-		H, H, H, H, H, H, H, H, 0, 0, 0, 0, 0, 0, 0, 0,
-		H, H, H, H, H, H, H, H, 0, 0, 0, 0, 0, 0, 0, 0,
-		H, H, H, H, H, H, H, H, 0, 0, 0, 0, 0, 0, 0, 0,
-		H, H, H, H, H, H, H, H, 0, 0, 0, 0, 0, 0, 0, 0,
-		H, H, H, H, H, H, H, H, 0, 0, 0, 0, 0, 0, 0, 0,
-		0, 0, 0, 0, 0, 0, 0, 0, H, H, H, H, H, H, H, H,
-		0, 0, 0, 0, 0, 0, 0, 0, H, H, H, H, H, H, H, H,
-		0, 0, 0, 0, 0, 0, 0, 0, H, H, R, R, H, H, H, H,
-		0, 0, 0, 0, 0, 0, 0, 0, H, H, R, R, H, H, H, H,
-		0, 0, 0, 0, 0, 0, 0, 0, H, H, H, H, H, H, H, H,
-		0, 0, 0, 0, 0, 0, 0, 0, H, H, H, H, H, H, H, H,
-		0, 0, 0, 0, 0, 0, 0, 0, H, H, H, H, H, H, H, H,
-		0, 0, 0, 0, 0, 0, 0, 0, H, H, H, H, H, H, H, H,
-	};
-	render_bitmap texture;
-	texture.Width = 16;
-	texture.Height = 16;
-	texture.Pixels = pixels;
-	
 	for(s32 index = 0; index < mesh->TriangleCount; index += 3)
 	{
 		//Transform vertices into clipspace
@@ -282,10 +330,6 @@ ENGINE_UPDATE(EngineUpdate)
 		vertex1.XYZ *= 1.0f / vertex1.W;
 		vertex2.XYZ *= 1.0f / vertex2.W;
 		
-		f32 cameraZ0 = vertex0.W;
-		f32 cameraZ1 = vertex1.W;
-		f32 cameraZ2 = vertex2.W;
-		
 		vertex0.X = (vertex0.X + 1) * 0.5f * buffer->Color.Width;
 		vertex0.Y = (vertex0.Y + 1) * 0.5f * buffer->Color.Height;
 		
@@ -297,17 +341,19 @@ ENGINE_UPDATE(EngineUpdate)
 		
 		if(Math_SignedAreaOfTriangle(vertex0.XY, vertex1.XY, vertex2.XY) >= 0.0f)
 		{
+			f32 cameraZ0 = vertex0.W;
+			f32 cameraZ1 = vertex1.W;
+			f32 cameraZ2 = vertex2.W;
 			
 			ComputeDepthForTriangle(&buffer->Depth, vertex0.XY, vertex1.XY, vertex2.XY,
 									cameraZ0, cameraZ1, cameraZ2);
 			
-			DrawTriangle(&buffer->Color, &buffer->Depth, &texture,
+			DrawTriangle(&buffer->Color, &buffer->Depth, &state->TestBitmap,
 						 vertex0.XY, vertex1.XY, vertex2.XY, 
 						 attribute0->UV, attribute1->UV, attribute2->UV,
-						 cameraZ0, cameraZ1, cameraZ2, {0.3f, 0.3f, 0.7f, 1});
+						 cameraZ0, cameraZ1, cameraZ2, {0.7f, 0.3f, 0.3f, 0.0f});
 			
-			
-#if 1
+#if 0
 			DrawLine2D(&buffer->Color, vertex0.XY, vertex1.XY, {0, 1, 0, 1});
 			DrawLine2D(&buffer->Color, vertex0.XY, vertex2.XY, {0, 1, 0, 1});
 			DrawLine2D(&buffer->Color, vertex1.XY, vertex2.XY, {0, 1, 0, 1});
@@ -315,26 +361,26 @@ ENGINE_UPDATE(EngineUpdate)
 			
 		}
 		
-		
-		
-		
-		
-		//clip zed coordinates
-		//retriangulate
-		//transform into ndc
-		//clip x,y
-		//triangulate
-		//transform into screen space
-		//render
-		
 	}
-	
-	
-	
 	
 	if(0)
 	{
 		DepthToColor(buffer);
+	}
+	
+	u32* source = (u32*)state->TestBitmap.Pixels;
+	u32*destination = (u32*)buffer->Color.Pixels;
+	u32* row = destination;
+	
+	for(s32 y = 0; y < state->TestBitmap.Height; ++y)
+	{
+		destination = row;
+		for(s32 x = 0; x < state->TestBitmap.Width; ++x)
+		{
+			*destination++ = *source++;
+		}
+		
+		row += buffer->Color.Width;
 	}
 	
 }
