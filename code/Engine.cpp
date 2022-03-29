@@ -197,6 +197,14 @@ LoadMesh(debug_file_read* readFile, char* fileName)
 		result.Normals = (v3*)((u8*)mesh + mesh->NormalOffset);
 		result.UVs = (v2*)((u8*)mesh + mesh->UVOffset);
 		
+#if 0		
+		for(s32 i = 0; i < result.TriangleCount; ++i)
+		{
+			printf("%d, %d\n", 
+				   result.Triangles[i].Vertex, result.Triangles[i].Normal);
+		}
+#endif
+		
 	}
 	
 	return(result);
@@ -309,14 +317,15 @@ ENGINE_UPDATE(EngineUpdate)
 	ClearBitmap(&buffer->Color, {0.1f, 0.1f, 0.1f, 0});
 	ClearDepthBuffer(&buffer->Depth, 0.0f);
 	
-	render_bitmap* texture = &state->CheckerBoardBitmap;
-	engine_mesh* mesh = &state->Sphere;
 	local_persist f32 elapsedTime = 0;
 	elapsedTime += time->Delta;
 	elapsedTime = 0;
+	
+	render_bitmap* texture = &state->TestBitmap;
+	engine_mesh* mesh = &state->Sphere;
+	
 	f32 c = Math_Cos(elapsedTime);
 	f32 s = Math_Sin(elapsedTime);
-	
 	m4x4 model;
 	model.Row1 = {c, -s,  0,  -state->CameraPosition.X};
 	model.Row2 = {s,  c,  0,  -state->CameraPosition.Y};
@@ -325,7 +334,6 @@ ENGINE_UPDATE(EngineUpdate)
 	
 	m4x4 viewBasis = Math_MultiplyM4x4(&state->Camera, &model);
 	m4x4 clipBasis = Math_MultiplyM4x4(&state->Perspective, &viewBasis); 
-	
 	
 	for(s32 index = 0; index < mesh->TriangleCount; index += 3)
 	{
@@ -366,13 +374,44 @@ ENGINE_UPDATE(EngineUpdate)
 			v3 frageNormal1 = Math_MultiplyM4x4(&model, mesh->Normals[index1->Normal], 0).XYZ;
 			v3 frageNormal2 = Math_MultiplyM4x4(&model, mesh->Normals[index2->Normal], 0).XYZ;
 			
+			v4 color = {0.7f, 0.3f, 0.3f, 1.0f};
+			color = {1, 1, 1, 0};
 			DrawTriangle(&buffer->Color, &buffer->Depth, texture,
 						 vertex0.XY, vertex1.XY, vertex2.XY, 
 						 uv0, uv1, uv2,
-						 cameraZ0, cameraZ1, cameraZ2, {0.7f, 0.3f, 0.3f, 0.0f},
+						 cameraZ0, cameraZ1, cameraZ2, color,
 						 frageNormal0, frageNormal1, frageNormal2);
 			
 #if 0
+			// NOTE(Stephen): Display Triangle Normals
+			f32 nScale = 0.25f;
+			v4 n0 = Math_MultiplyM4x4(&clipBasis, mesh->Normals[index0->Normal] * nScale +
+									  mesh->Vertices[index0->Vertex]);
+			v4 n1 = Math_MultiplyM4x4(&clipBasis, mesh->Normals[index1->Normal] * nScale +
+									  mesh->Vertices[index1->Vertex]);
+			v4 n2 = Math_MultiplyM4x4(&clipBasis, mesh->Normals[index2->Normal] * nScale +
+									  mesh->Vertices[index2->Vertex]);
+			
+			n0.XYZ *= 1.0f / n0.W; 
+			n1.XYZ *= 1.0f / n1.W; 
+			n2.XYZ *= 1.0f / n2.W;
+			
+			n0.X = (n0.X + 1) * 0.5f * buffer->Color.Width;
+			n0.Y = (n0.Y + 1) * 0.5f * buffer->Color.Height;
+			
+			n1.X = (n1.X + 1) * 0.5f * buffer->Color.Width;
+			n1.Y = (n1.Y + 1) * 0.5f * buffer->Color.Height;
+			
+			n2.X = (n2.X + 1) * 0.5f * buffer->Color.Width;
+			n2.Y = (n2.Y + 1) * 0.5f * buffer->Color.Height;
+			
+			DrawLine2D(&buffer->Color, vertex0.XY, n0.XY, {0.2f, 0.3f, 0.8f, 1});
+			DrawLine2D(&buffer->Color, vertex1.XY, n1.XY, {0.2f, 0.3f, 0.8f, 1});
+			DrawLine2D(&buffer->Color, vertex2.XY, n2.XY, {0.2f, 0.3f, 0.8f, 1});
+#endif
+			
+#if 0
+			// NOTE(Stephen): Display triangle edges
 			DrawLine2D(&buffer->Color, vertex0.XY, vertex1.XY, {0, 1, 0, 1});
 			DrawLine2D(&buffer->Color, vertex0.XY, vertex2.XY, {0, 1, 0, 1});
 			DrawLine2D(&buffer->Color, vertex1.XY, vertex2.XY, {0, 1, 0, 1});

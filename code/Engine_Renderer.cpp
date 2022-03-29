@@ -148,13 +148,17 @@ DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_bitmap* texture
 	f32 oneOverCameraZ1 = 1.0f / cameraZ1; 
 	f32 oneOverCameraZ2 = 1.0f / cameraZ2;
 	
+	f32 lightIntensity = 3.0f;
 	v3 lightDirection = -Math_NormalizedV3({0, -1, -1});
-	v3 lightColor = V3(1, 1, 1);
+	v3 lightColor = V3(0.957f, 0.914f, 0.608f) * lightIntensity;
+	//lightColor = V3(1, 1, 1) * lightIntensity;
 	
 	//Perspective correct interpolation per vertex attribute
 	uv0 *= oneOverCameraZ0;
 	uv1 *= oneOverCameraZ1;
 	uv2 *= oneOverCameraZ2;
+	
+	f32 oneOverPI = (1.0f / PI);
 	
 	for(s32 y = top; y <= bottom; ++y)
 	{
@@ -169,11 +173,12 @@ DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_bitmap* texture
 			f32 v = Math_SignedAreaOfTriangle(pixel0, pixel1, pixelPosition);
 			f32 s = Math_SignedAreaOfTriangle(pixelPosition, pixel1, pixel2);
 			
+			
 			if(u >= 0.0f && v >= 0.0f && s >= 0.0f)
 			{
 				u *= oneOverArea; 
 				v *= oneOverArea; 
-				s *= oneOverArea;
+				s *= oneOverArea;// NOTE(Stephen): 1.0f - u - v
 				
 				f32 z = (oneOverCameraZ0 * s + oneOverCameraZ1 * u + oneOverCameraZ2 * v);
 				if(*depthBufferPixel <= z)
@@ -205,7 +210,10 @@ DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_bitmap* texture
 					texel.B = Math_Lerp(texel.B, color.B, color.A);
 					
 					f32 intensity = Math_DotProductV3(lightDirection, Math_NormalizedV3(pixelNormal));
-					texel.RGB += lightColor * intensity;
+					//texel.RGB = Math_HadamardProduct(lightColor * intensity, texel.RGB);
+					
+					texel.RGB = Math_HadamardProduct(texel.RGB * oneOverPI, 
+													 lightColor * intensity); 
 					
 					texel.R = Math_Clamp01(texel.R);
 					texel.G = Math_Clamp01(texel.G);

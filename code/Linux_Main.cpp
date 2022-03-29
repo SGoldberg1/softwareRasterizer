@@ -252,8 +252,6 @@ main(int argc, char** args)
 				s32 bufferWidth = GlobalWindowWidth / 2;
 				s32 bufferHeight = GlobalWindowHeight / 2;
 				
-				printf("%d, %d\n", bufferWidth, bufferHeight);
-				
 				SDL_RenderSetLogicalSize(renderer, 
 										 GlobalWindowWidth, 
 										 GlobalWindowHeight);

@@ -273,8 +273,7 @@ WriteEngineMesh(memory_block* vertexMemory, memory_block* triangleMemory,
 	mesh.VertexCount = vertexMemory->Used / sizeof(v3);
 	mesh.TriangleCount = triangleMemory->Used / sizeof(triangle_index);
 	mesh.UVCount = uvMemory->Used / sizeof(v2);
-	mesh.NormalCount = normalMemory->Used / sizeof(v2);
-	
+	mesh.NormalCount = normalMemory->Used / sizeof(v3);
 	
 	mesh.TriangleOffset = vertexMemory->Used + sizeof(loadable_mesh);
 	mesh.NormalOffset = mesh.TriangleOffset + triangleMemory->Used;

@@ -231,9 +231,16 @@ Math_DotProductV3(v3 a, v3 b)
 }
 
 inline v3
+Math_HadamardProduct(v3 a, v3 b)
+{
+	v3 result = {a.X * b.X, a.Y * b.Y, a.Z * b.Z};
+	return(result);
+}
+
+inline v3
 Math_CrossProductV3(v3 a, v3 b)
 {
-    v3 result;
+	v3 result;
 	result.X = (a.Y * b.Z) - (a.Z * b.Y);
 	result.Y = (a.Z * b.X) - (a.X * b.Z);
 	result.Z = (a.X * b.Y) - (a.Y * b.X);
@@ -333,7 +340,7 @@ Math_LineToLineIntersection(v2 p0, v2 p1, v2 p2, v2 p3,
 	b32 result = FALSE;
 	
 	v2 deltaA = (p1 - p0);
-    v2 deltaB = (p3 - p2);
+	v2 deltaB = (p3 - p2);
 	
 	f32 determinant = ((deltaA.X * deltaB.Y) - (deltaA.Y * deltaB.X));
 	
@@ -357,19 +364,19 @@ Math_LineToLineIntersection(v2 p0, v2 p1, v2 p2, v2 p3,
 
 struct ray_hit
 {
-    b32 Hit;
-    v3 Point;
-    f32 Distance;
+	b32 Hit;
+	v3 Point;
+	f32 Distance;
 };
 
 inline ray_hit
 Math_RayIntersectPlane(v3 rayDirection, v3 rayOrigin, 
 					   f32 rayLength, v3 planeNormal, v3 planePoint)
 {
-    ray_hit result = {};
-    f32 denominator = Math_DotProductV3(rayDirection, planeNormal);
-    
-    if(denominator != 0.0f)
+	ray_hit result = {};
+	f32 denominator = Math_DotProductV3(rayDirection, planeNormal);
+	
+	if(denominator != 0.0f)
 	{
 		f32 t = (Math_DotProductV3(planePoint - rayOrigin, planeNormal) / denominator);
 		
