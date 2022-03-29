@@ -73,9 +73,13 @@ struct engine_state
 	engine_mesh Plane;
 	engine_mesh Rectangle;
 	engine_mesh Sphere;
-	render_bitmap TestBitmap;
-	render_bitmap CheckerBoardBitmap;
 	
+	render_bitmap BrickDiffuse;
+	render_bitmap BrickSpecular;
+	render_bitmap BrickOcclusion;
+	render_bitmap BrickNormal;
+	
+	render_bitmap CheckerBoardBitmap;
 };
 
 #endif //_ENGINE_H

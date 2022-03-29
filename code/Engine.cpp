@@ -280,7 +280,11 @@ ENGINE_UPDATE(EngineUpdate)
 		//state->Rectangle = Mesh_CreateRectangle(&state->WorldMemory);
 		//state->Plane = Mesh_CreatePlane(&state->WorldMemory, 10, 10);
 		
-		state->TestBitmap = LoadBitmap(debug->ReadFile, "./assets/images/test.sr");
+		state->BrickDiffuse = LoadBitmap(debug->ReadFile, "./assets/images/brick_diff.sr");
+		state->BrickSpecular = LoadBitmap(debug->ReadFile, "./assets/images/brick_spec.sr");
+		state->BrickOcclusion = LoadBitmap(debug->ReadFile, "./assets/images/brick_ao.sr");
+		state->BrickNormal = LoadBitmap(debug->ReadFile, "./assets/images/brick_norm.sr");
+		
 		state->CheckerBoardBitmap = LoadBitmap(debug->ReadFile, "./assets/images/checkerPattern.sr");
 		
 		state->Sphere = LoadMesh(debug->ReadFile, "./assets/models/sphere.sr");
@@ -321,7 +325,11 @@ ENGINE_UPDATE(EngineUpdate)
 	elapsedTime += time->Delta;
 	elapsedTime = 0;
 	
-	render_bitmap* texture = &state->TestBitmap;
+	render_bitmap* diffuseTexture = &state->BrickDiffuse;
+	render_bitmap* specularTexture = &state->BrickSpecular;
+	render_bitmap* occlusionTexture = &state->BrickOcclusion;
+	render_bitmap* normalTexture = &state->BrickNormal;
+	
 	engine_mesh* mesh = &state->Sphere;
 	
 	f32 c = Math_Cos(elapsedTime);
@@ -376,11 +384,19 @@ ENGINE_UPDATE(EngineUpdate)
 			
 			v4 color = {0.7f, 0.3f, 0.3f, 1.0f};
 			color = {1, 1, 1, 0};
-			DrawTriangle(&buffer->Color, &buffer->Depth, texture,
+			
+			v3 fragPosition0 = Math_MultiplyM4x4(&model, mesh->Vertices[index0->Vertex]).XYZ;
+			v3 fragPosition1 = Math_MultiplyM4x4(&model, mesh->Vertices[index1->Vertex]).XYZ;
+			v3 fragPosition2 = Math_MultiplyM4x4(&model, mesh->Vertices[index2->Vertex]).XYZ;
+			
+			DrawTriangle(&buffer->Color, &buffer->Depth, 
+						 diffuseTexture, specularTexture, 
+						 occlusionTexture, normalTexture,
 						 vertex0.XY, vertex1.XY, vertex2.XY, 
 						 uv0, uv1, uv2,
-						 cameraZ0, cameraZ1, cameraZ2, color,
-						 frageNormal0, frageNormal1, frageNormal2);
+						 cameraZ0, cameraZ1, cameraZ2,
+						 fragPosition0, fragPosition1, fragPosition2,
+						 frageNormal0, frageNormal1, frageNormal2, color);
 			
 #if 0
 			// NOTE(Stephen): Display Triangle Normals
@@ -444,7 +460,7 @@ ENGINE_UPDATE(EngineUpdate)
 #endif
 	
 	
-#if 0
+#if 1
 	local_persist f32 t = 0;
 	t += time->Delta;
 	

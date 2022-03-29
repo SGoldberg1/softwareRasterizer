@@ -118,10 +118,13 @@ NDCToCameraZ(f32 ndcZ, f32 farPlane, f32 nearPlane)
 }
 
 internal_function void
-DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_bitmap* texture,
+DrawTriangle(render_bitmap* buffer, render_bitmap* depth, 
+			 render_bitmap* diffuseTexture, render_bitmap* specularTexture, 
+			 render_bitmap* occlusionTexture, render_bitmap* normalTexture,
 			 v2 pixel0, v2 pixel1, v2 pixel2, v2 uv0, v2 uv1, v2 uv2,
-			 f32 cameraZ0, f32 cameraZ1, f32 cameraZ2, v4 color, 
-			 v3 fragNormal0, v3 fragNormal1, v3 fragNormal2)
+			 f32 cameraZ0, f32 cameraZ1, f32 cameraZ2, 
+			 v3 fragPosition0, v3 fragPosition1, v3 fragPosition2, 
+			 v3 fragNormal0, v3 fragNormal1, v3 fragNormal2, v4 color)
 {
 	s32 left = Math_RoundF32ToS32(Math_MinF32(pixel0.X, Math_MinF32(pixel1.X, pixel2.X)));
 	s32 right = Math_RoundF32ToS32(Math_MaxF32(pixel0.X, Math_MaxF32(pixel1.X, pixel2.X)));
@@ -140,7 +143,10 @@ DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_bitmap* texture
 	f32* depthBufferPixel;
 	f32* depthbufferRow = (f32*)depth->Pixels + left + top * depth->Width;
 	
-	u32* texturePixel = (u32*)texture->Pixels;
+	u32* diffusePixels = (u32*)diffuseTexture->Pixels;
+	u32* specularPixels = (u32*)specularTexture->Pixels;
+	u32* occlusionPixels = (u32*)occlusionTexture->Pixels;
+	u32* normalPixels = (u32*)normalTexture->Pixels;
 	
 	f32 oneOverArea = 1.0f / Math_SignedAreaOfTriangle(pixel0, pixel1, pixel2);
 	
@@ -148,10 +154,13 @@ DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_bitmap* texture
 	f32 oneOverCameraZ1 = 1.0f / cameraZ1; 
 	f32 oneOverCameraZ2 = 1.0f / cameraZ2;
 	
-	f32 lightIntensity = 3.0f;
 	v3 lightDirection = -Math_NormalizedV3({0, -1, -1});
-	v3 lightColor = V3(0.957f, 0.914f, 0.608f) * lightIntensity;
-	//lightColor = V3(1, 1, 1) * lightIntensity;
+	f32 lightIntensityDirection = 2.0f;
+	v3 lightColor = V3(0.957f, 0.914f, 0.608f) * lightIntensityDirection;
+	lightColor = V3(1, 1, 1) * lightIntensityDirection;
+	
+	f32 specularIntensity = 2.5f;
+	f32 shininess = 3.5f;
 	
 	//Perspective correct interpolation per vertex attribute
 	uv0 *= oneOverCameraZ0;
@@ -173,14 +182,15 @@ DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_bitmap* texture
 			f32 v = Math_SignedAreaOfTriangle(pixel0, pixel1, pixelPosition);
 			f32 s = Math_SignedAreaOfTriangle(pixelPosition, pixel1, pixel2);
 			
-			
 			if(u >= 0.0f && v >= 0.0f && s >= 0.0f)
 			{
+				
 				u *= oneOverArea; 
 				v *= oneOverArea; 
 				s *= oneOverArea;// NOTE(Stephen): 1.0f - u - v
 				
 				f32 z = (oneOverCameraZ0 * s + oneOverCameraZ1 * u + oneOverCameraZ2 * v);
+				
 				if(*depthBufferPixel <= z)
 				{
 					v2 uv;
@@ -188,37 +198,84 @@ DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_bitmap* texture
 					uv.Y = s * uv0.Y + u * uv1.Y + v * uv2.Y;
 					z = 1.0f / z;
 					uv *= z;
-					uv.X = uv.X * (texture->Width - 1);
-					uv.Y = (texture->Height - 1) * (uv.Y);
 					
-					u32 texelColor = 
-						texturePixel[Math_RoundF32ToS32(uv.Y) * texture->Width + 
-									 Math_RoundF32ToS32(uv.X)];
+					s32 textureX = Math_RoundF32ToS32(uv.X * (diffuseTexture->Width - 1));
+					s32 textureY = Math_RoundF32ToS32((diffuseTexture->Height - 1) * (uv.Y)); 
+					u32 textureSample = diffusePixels[textureY * diffuseTexture->Width + textureX];
 					
 					v4 texel;
-					texel.R = (f32)((texelColor >> 24) & 0xFF) * OneOver255;
-					texel.G = (f32)((texelColor >> 16) & 0xFF) * OneOver255;
-					texel.B = (f32)((texelColor >> 8 ) & 0xFF) * OneOver255;
-					
-					v3 pixelNormal;
-					pixelNormal.X = s * fragNormal0.X + u * fragNormal1.X + v * fragNormal2.X;
-					pixelNormal.Y = s * fragNormal0.Y + u * fragNormal1.Y + v * fragNormal2.Y;
-					pixelNormal.Z = s * fragNormal0.Z + u * fragNormal1.Z + v * fragNormal2.Z;
+					texel.R = (f32)((textureSample >> 24) & 0xFF) * OneOver255;
+					texel.G = (f32)((textureSample >> 16) & 0xFF) * OneOver255;
+					texel.B = (f32)((textureSample >> 8 ) & 0xFF) * OneOver255;
 					
 					texel.R = Math_Lerp(texel.R, color.R, color.A);
 					texel.G = Math_Lerp(texel.G, color.G, color.A);
 					texel.B = Math_Lerp(texel.B, color.B, color.A);
 					
-					f32 intensity = Math_DotProductV3(lightDirection, Math_NormalizedV3(pixelNormal));
-					//texel.RGB = Math_HadamardProduct(lightColor * intensity, texel.RGB);
+					v3 fragNormal;
+					fragNormal.X = s * fragNormal0.X + u * fragNormal1.X + v * fragNormal2.X;
+					fragNormal.Y = s * fragNormal0.Y + u * fragNormal1.Y + v * fragNormal2.Y;
+					fragNormal.Z = s * fragNormal0.Z + u * fragNormal1.Z + v * fragNormal2.Z;
+					fragNormal = Math_NormalizedV3(fragNormal);
 					
-					texel.RGB = Math_HadamardProduct(texel.RGB * oneOverPI, 
-													 lightColor * intensity); 
+					f32 diffuseFactor = Math_DotProductV3(lightDirection, fragNormal);
+					v3 specularColor = {};
 					
-					texel.R = Math_Clamp01(texel.R);
-					texel.G = Math_Clamp01(texel.G);
-					texel.B = Math_Clamp01(texel.B);
+					if(diffuseFactor > 0.0f)
+					{
+						v3 fragPosition;
+						fragPosition.X = s * fragPosition0.X + u * fragPosition1.X + v * fragPosition2.X;
+						fragPosition.Y = s * fragPosition0.Y + u * fragPosition1.Y + v * fragPosition2.Y;
+						fragPosition.Z = s * fragPosition0.Z + u * fragPosition1.Z + v * fragPosition2.Z;
+						fragPosition = Math_NormalizedV3(fragPosition);
+						
+						v3 fragToCamera = Math_NormalizedV3(fragPosition);
+						v3 reflect = Math_ReflectV3(lightDirection, fragNormal);
+						f32 specularFactor = Math_DotProductV3(reflect, -fragToCamera);
+						
+						if(specularFactor > 0.0f)
+						{
+							specularFactor = Math_Pow(specularFactor, shininess);
+							specularColor =
+								lightColor * Math_MaxF32(specularFactor * specularIntensity, 0);
+							
+#if 1
+							textureX = Math_RoundF32ToS32(uv.X * (specularTexture->Width - 1));
+							textureY = Math_RoundF32ToS32((specularTexture->Height - 1) * (uv.Y)); 
+							textureSample = specularPixels[textureY * specularTexture->Width + textureX];
+							
+							f32 specR = (f32)((textureSample >> 24) & 0xFF) * OneOver255;
+							f32 specG = (f32)((textureSample >> 16) & 0xFF) * OneOver255;
+							f32 specB = (f32)((textureSample >> 8 ) & 0xFF) * OneOver255;
+							specularColor.X *= specR;
+							specularColor.Y *= specG;
+							specularColor.Z *= specB;
+#endif
+						}
+					}
 					
+					v3 finalLightColor = (lightColor * diffuseFactor + 
+										  specularColor);
+					
+					texel.RGB = Math_HadamardProduct(texel.RGB * oneOverPI, finalLightColor);
+					
+#if 1
+					textureX = Math_RoundF32ToS32(uv.X * (occlusionTexture->Width - 1));
+					textureY = Math_RoundF32ToS32((occlusionTexture->Height - 1) * (uv.Y)); 
+					textureSample = occlusionPixels[textureY * occlusionTexture->Width + textureX];
+					
+					f32 occR = (f32)((textureSample >> 24) & 0xFF) * OneOver255;
+					f32 occG = (f32)((textureSample >> 16) & 0xFF) * OneOver255;
+					f32 occB = (f32)((textureSample >> 8 ) & 0xFF) * OneOver255;
+					
+					texel.X *= occR;
+					texel.Y *= occG;
+					texel.Z *= occB;
+					
+#endif
+					texel.RGB.X = Math_Clamp01(texel.RGB.X);
+					texel.RGB.Y = Math_Clamp01(texel.RGB.Y);
+					texel.RGB.Z = Math_Clamp01(texel.RGB.Z);
 					u8 redChannel = Math_RoundF32ToU32(texel.R * 255.0f);
 					u8 greenChannel = Math_RoundF32ToU32(texel.G * 255.0f);
 					u8 blueChannel = Math_RoundF32ToU32(texel.B * 255.0f);

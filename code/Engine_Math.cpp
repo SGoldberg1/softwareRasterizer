@@ -2,6 +2,13 @@
 #include <math.h>
 
 inline f32
+Math_Pow(f32 base, f32 exponent)
+{
+	f32 result = powf(base, exponent);
+	return(result);
+}
+
+inline f32
 Math_Sin(f32 radians)
 {
 	f32 result = sinf(radians);
@@ -247,6 +254,12 @@ Math_CrossProductV3(v3 a, v3 b)
 	return(result);
 }
 
+inline v3
+Math_ReflectV3(v3 incident, v3 normal)
+{
+	v3 result = 2.0f * Math_DotProductV3(incident, normal) * normal - incident;
+	return(result);
+}
 
 inline u32
 PackV4ToU32(v4 a)
