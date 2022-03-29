@@ -46,10 +46,14 @@ union vertex_attribute
 struct engine_mesh
 {
 	s32 TriangleCount;
-	s32* Triangles;
+	triangle_index* Triangles;
 	s32 VertexCount;
-	vertex_attribute* Vertices;
+	s32 UVCount;
+	s32 NormalCount;
+	//vertex_attribute* Vertices;
+	v3* Vertices;
 	v3* Normals;
+	v2* UVs;
 };
 
 
@@ -68,7 +72,9 @@ struct engine_state
 	engine_mesh Cube;
 	engine_mesh Plane;
 	engine_mesh Rectangle;
+	engine_mesh Sphere;
 	render_bitmap TestBitmap;
+	render_bitmap CheckerBoardBitmap;
 	
 };
 

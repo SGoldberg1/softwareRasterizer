@@ -1,0 +1,58 @@
+
+This is basic documentation of current data formats
+
+Bitmaps used in the engine store the width and height of the pixels - assumed 32 bit depth
+The dimensions are followed by the pixels.
+
+Memory layout:
+|width|height|pixel0|pixel1|pixel2|...
+
+
+struct loadable_bitmap
+{
+	s32 Width;
+	s32 Height;
+    //pixels here....
+};
+
+
+
+Mesh data used in the engine store:
+-The number of vertices (32-bit signed)
+-The number of triangles(these are stored as three values. Each representing
+						The index for a vertex, uv, and normal) (32-bit signed)
+-The number of uvs (32-bit signed)
+-The number normals (32-bit signed)
+-The triangle offset, which is the number of bytes from the head of the file (32-bit signed)
+-The normal offset, which is the number of byte from the head of the file (32-bit signed)
+-The UV offset, which is the number of bytes from the head of the file (32-bit signed)
+
+Memory Layout:
+|vertex count|triangle count|uv count|normal count|triangle offset|normal offset|uv offset|vertex0|
+vertex1|...|triangle0|triangle1|...|normal0|normal1|...|uv0|uv1|...
+
+struct loadable_mesh
+{
+	s32 VertexCount;
+	s32 TriangleCount;
+	s32 UVCount;
+	s32 NormalCount;
+	// NOTE(Stephen): Vertex offset is right after the loadable mesh
+	//s32 VertexOffset;
+	s32 TriangleOffset;
+	s32 NormalOffset;
+	s32 UVOffset;
+};
+
+The memory layout for each triangle
+union triangle_index
+{
+	s32 E[3];
+	struct
+	{
+		s32 Vertex;
+		s32 UV;
+		s32 Normal;
+	};
+};
+

@@ -13,6 +13,7 @@
 #include "Engine_Renderer.cpp"
 
 
+#if 0
 engine_mesh
 Mesh_CreateCube(memory_block* block)
 {
@@ -40,7 +41,7 @@ Mesh_CreateCube(memory_block* block)
 	result.Triangles[33] =  5; result.Triangles[34] =  1; result.Triangles[35] =  0; 
 	
 	result.VertexCount = 8;
-	result.Vertices = MemoryBlock_PushArray(block, result.VertexCount, vertex_attribute);
+	result.Vertices = MemoryBlock_PushArray(block, result.VertexCount, v3);
 	
 	result.Vertices[0]  = { -0.5f, -0.5f, 0.5f };//0
 	result.Vertices[1] = {  0.5f, -0.5f, 0.5f };//1
@@ -64,7 +65,7 @@ Mesh_CreatePlane(memory_block* block, s32 width, s32 depth)
 	result.TriangleCount = 6 * (width) * (depth);
 	result.Triangles = MemoryBlock_PushArray(block, result.TriangleCount, s32);
 	result.VertexCount = (width + 1) * (depth + 1);
-	result.Vertices = MemoryBlock_PushArray(block, result.VertexCount, vertex_attribute);
+	result.Vertices = MemoryBlock_PushArray(block, result.VertexCount, v3);
 	
 	f32 vertexX = -width * 0.5f;
 	f32 vertexZ = depth * 0.5f;
@@ -74,7 +75,7 @@ Mesh_CreatePlane(memory_block* block, s32 width, s32 depth)
 	{
 		for(s32 x = 0; x <= width; ++x)
 		{
-			result.Vertices[vi++].Vertex = V3((f32)x + vertexX, 0, vertexZ - (f32)z);
+			result.Vertices[vi++] = V3((f32)x + vertexX, 0, vertexZ - (f32)z);
 		}
 	}
 	
@@ -112,15 +113,16 @@ Mesh_CreateRectangle(memory_block* block)
 	result.Triangles[3 ] =  0; result.Triangles[4 ] =  2; result.Triangles[5 ] =  3;
 	
 	result.VertexCount = 4;
-	result.Vertices = MemoryBlock_PushArray(block, result.VertexCount, vertex_attribute);
-	//                      Position            Normal             UV
-	result.Vertices[0] = { -0.5f, -0.5f, 0.5f,  0.0f, 0.0f, 1.0f,  0.0f, 0.0f };//0
-	result.Vertices[1] = {  0.5f, -0.5f, 0.5f,  0.0f, 0.0f, 1.0f,  1.0f, 0.0f };//1
-	result.Vertices[2] = {  0.5f,  0.5f, 0.5f,  0.0f, 0.0f, 1.0f,  1.0f, 1.0f };//2
-	result.Vertices[3] = { -0.5f,  0.5f, 0.5f,  0.0f, 0.0f, 1.0f,  0.0f, 1.0f };//3
+	result.Vertices = MemoryBlock_PushArray(block, result.VertexCount, v3);
+	result.Vertices[0] = { -0.5f, -0.5f, 0.5f };//0
+	result.Vertices[1] = {  0.5f, -0.5f, 0.5f };//1
+	result.Vertices[2] = {  0.5f,  0.5f, 0.5f };//2
+	result.Vertices[3] = { -0.5f,  0.5f, 0.5f };//3
 	
 	return(result);
 }
+
+#endif
 
 void
 WriteEngineBuffers(debug_file_write* writeFile, engine_buffer* buffers)
@@ -161,17 +163,40 @@ WriteEngineBuffers(debug_file_write* writeFile, engine_buffer* buffers)
 }
 
 render_bitmap
-ReadBitmap(debug_file_read* readFile, char* fileName)
+LoadBitmap(debug_file_read* readFile, char* fileName)
 {
 	debug_file file = readFile(fileName);
 	render_bitmap result = {};
 	
 	if(file.IsValid)
 	{
-		engine_bitmap* bitmap = (engine_bitmap*)file.Contents;
+		loadable_bitmap* bitmap = (loadable_bitmap*)file.Contents;
 		result.Width = bitmap->Width;
 		result.Height = bitmap->Height;
 		result.Pixels = (bitmap + 1);
+	}
+	
+	return(result);
+}
+
+engine_mesh
+LoadMesh(debug_file_read* readFile, char* fileName)
+{
+	debug_file file = readFile(fileName);
+	engine_mesh result = {};
+	
+	if(file.IsValid)
+	{
+		loadable_mesh* mesh = (loadable_mesh*)file.Contents;
+		result.VertexCount = mesh->VertexCount;
+		result.TriangleCount = mesh->TriangleCount;
+		result.UVCount = mesh->UVCount;
+		result.NormalCount = mesh->NormalCount;
+		result.Vertices = (v3*)(mesh + 1);
+		result.Triangles = (triangle_index*)((u8*)mesh + mesh->TriangleOffset);
+		result.Normals = (v3*)((u8*)mesh + mesh->NormalOffset);
+		result.UVs = (v2*)((u8*)mesh + mesh->UVOffset);
+		
 	}
 	
 	return(result);
@@ -243,12 +268,15 @@ ENGINE_UPDATE(EngineUpdate)
 							   memory->PersistentSize - sizeof(engine_state),
 							   (u8*)memory->Persistent + sizeof(engine_state));
 		
-		state->Cube = Mesh_CreateCube(&state->WorldMemory);
-		state->Rectangle = Mesh_CreateRectangle(&state->WorldMemory);
-		state->Plane = Mesh_CreatePlane(&state->WorldMemory, 10, 10);
+		//state->Cube = Mesh_CreateCube(&state->WorldMemory);
+		//state->Rectangle = Mesh_CreateRectangle(&state->WorldMemory);
+		//state->Plane = Mesh_CreatePlane(&state->WorldMemory, 10, 10);
 		
-		state->TestBitmap = ReadBitmap(debug->ReadFile, 
-									   "./assets/images/test.sr");
+		state->TestBitmap = LoadBitmap(debug->ReadFile, "./assets/images/test.sr");
+		state->CheckerBoardBitmap = LoadBitmap(debug->ReadFile, "./assets/images/checkerPattern.sr");
+		
+		state->Sphere = LoadMesh(debug->ReadFile, "./assets/models/sphere.sr");
+		state->Cube = LoadMesh(debug->ReadFile, "./assets/models/cube.sr");
 		
 		InitializeCamera(state,
 						 60, 0.1f, 100.0f,
@@ -281,7 +309,8 @@ ENGINE_UPDATE(EngineUpdate)
 	ClearBitmap(&buffer->Color, {0.1f, 0.1f, 0.1f, 0});
 	ClearDepthBuffer(&buffer->Depth, 0.0f);
 	
-	engine_mesh* mesh = &state->Rectangle;
+	render_bitmap* texture = &state->TestBitmap;
+	engine_mesh* mesh = &state->Sphere;
 	local_persist f32 elapsedTime = 0;
 	elapsedTime += time->Delta;
 	elapsedTime = 0;
@@ -297,16 +326,15 @@ ENGINE_UPDATE(EngineUpdate)
 	m4x4 viewBasis = Math_MultiplyM4x4(&state->Camera, &model);
 	m4x4 clipBasis = Math_MultiplyM4x4(&state->Perspective, &viewBasis); 
 	
+	
 	for(s32 index = 0; index < mesh->TriangleCount; index += 3)
 	{
-		//Transform vertices into clipspace
-		vertex_attribute* attribute0 = mesh->Vertices + mesh->Triangles[index + 0];
-		vertex_attribute* attribute1 = mesh->Vertices + mesh->Triangles[index + 1];
-		vertex_attribute* attribute2 = mesh->Vertices + mesh->Triangles[index + 2];
-		
-		v4 vertex0 = Math_MultiplyM4x4(&clipBasis, attribute0->Vertex);
-		v4 vertex1 = Math_MultiplyM4x4(&clipBasis, attribute1->Vertex);
-		v4 vertex2 = Math_MultiplyM4x4(&clipBasis, attribute2->Vertex);
+		triangle_index* index0 = mesh->Triangles + index + 0;
+		triangle_index* index1 = mesh->Triangles + index + 1;
+		triangle_index* index2 = mesh->Triangles + index + 2;
+		v4 vertex0 = Math_MultiplyM4x4(&clipBasis, mesh->Vertices[index0->Vertex]);
+		v4 vertex1 = Math_MultiplyM4x4(&clipBasis, mesh->Vertices[index1->Vertex]);
+		v4 vertex2 = Math_MultiplyM4x4(&clipBasis, mesh->Vertices[index2->Vertex]);
 		
 		vertex0.XYZ *= 1.0f / vertex0.W;
 		vertex1.XYZ *= 1.0f / vertex1.W;
@@ -330,9 +358,12 @@ ENGINE_UPDATE(EngineUpdate)
 			ComputeDepthForTriangle(&buffer->Depth, vertex0.XY, vertex1.XY, vertex2.XY,
 									cameraZ0, cameraZ1, cameraZ2);
 			
-			DrawTriangle(&buffer->Color, &buffer->Depth, &state->TestBitmap,
+			v2 uv0 = mesh->UVs[index0->UV];
+			v2 uv1 = mesh->UVs[index1->UV];
+			v2 uv2 = mesh->UVs[index2->UV];
+			DrawTriangle(&buffer->Color, &buffer->Depth, texture,
 						 vertex0.XY, vertex1.XY, vertex2.XY, 
-						 attribute0->UV, attribute1->UV, attribute2->UV,
+						 uv0, uv1, uv2,
 						 cameraZ0, cameraZ1, cameraZ2, {0.7f, 0.3f, 0.3f, 0.0f});
 			
 #if 0

@@ -23,10 +23,34 @@ typedef double f64;
 
 typedef uintptr_t u32ptr;
 
-struct engine_bitmap
+struct loadable_bitmap
 {
 	s32 Width;
 	s32 Height;
+};
+
+struct loadable_mesh
+{
+	s32 VertexCount;
+	s32 TriangleCount;
+	s32 UVCount;
+	s32 NormalCount;
+	// NOTE(Stephen): Vertex offset is right after the loadable mesh
+	//s32 VertexOffset;
+	s32 TriangleOffset;
+	s32 NormalOffset;
+	s32 UVOffset;
+};
+
+union triangle_index
+{
+	s32 E[3];
+	struct
+	{
+		s32 Vertex;
+		s32 UV;
+		s32 Normal;
+	};
 };
 
 #define TRUE  (1)
