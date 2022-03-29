@@ -120,7 +120,8 @@ NDCToCameraZ(f32 ndcZ, f32 farPlane, f32 nearPlane)
 internal_function void
 DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_bitmap* texture,
 			 v2 pixel0, v2 pixel1, v2 pixel2, v2 uv0, v2 uv1, v2 uv2,
-			 f32 cameraZ0, f32 cameraZ1, f32 cameraZ2, v4 color)
+			 f32 cameraZ0, f32 cameraZ1, f32 cameraZ2, v4 color, 
+			 v3 fragNormal0, v3 fragNormal1, v3 fragNormal2)
 {
 	s32 left = Math_RoundF32ToS32(Math_MinF32(pixel0.X, Math_MinF32(pixel1.X, pixel2.X)));
 	s32 right = Math_RoundF32ToS32(Math_MaxF32(pixel0.X, Math_MaxF32(pixel1.X, pixel2.X)));
@@ -146,6 +147,9 @@ DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_bitmap* texture
 	f32 oneOverCameraZ0 = 1.0f / cameraZ0; 
 	f32 oneOverCameraZ1 = 1.0f / cameraZ1; 
 	f32 oneOverCameraZ2 = 1.0f / cameraZ2;
+	
+	v3 lightDirection = -Math_NormalizedV3({0, -1, -1});
+	v3 lightColor = V3(1, 1, 1);
 	
 	//Perspective correct interpolation per vertex attribute
 	uv0 *= oneOverCameraZ0;
@@ -191,9 +195,25 @@ DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_bitmap* texture
 					texel.G = (f32)((texelColor >> 16) & 0xFF) * OneOver255;
 					texel.B = (f32)((texelColor >> 8 ) & 0xFF) * OneOver255;
 					
-					u8 redChannel = Math_RoundF32ToU32(Math_Lerp(texel.R, color.R, color.A) * 255.0f);
-					u8 greenChannel = Math_RoundF32ToU32(Math_Lerp(texel.G, color.G, color.A) * 255.0f);
-					u8 blueChannel = Math_RoundF32ToU32(Math_Lerp(texel.B, color.B, color.A) * 255.0f);
+					v3 pixelNormal;
+					pixelNormal.X = s * fragNormal0.X + u * fragNormal1.X + v * fragNormal2.X;
+					pixelNormal.Y = s * fragNormal0.Y + u * fragNormal1.Y + v * fragNormal2.Y;
+					pixelNormal.Z = s * fragNormal0.Z + u * fragNormal1.Z + v * fragNormal2.Z;
+					
+					texel.R = Math_Lerp(texel.R, color.R, color.A);
+					texel.G = Math_Lerp(texel.G, color.G, color.A);
+					texel.B = Math_Lerp(texel.B, color.B, color.A);
+					
+					f32 intensity = Math_DotProductV3(lightDirection, Math_NormalizedV3(pixelNormal));
+					texel.RGB += lightColor * intensity;
+					
+					texel.R = Math_Clamp01(texel.R);
+					texel.G = Math_Clamp01(texel.G);
+					texel.B = Math_Clamp01(texel.B);
+					
+					u8 redChannel = Math_RoundF32ToU32(texel.R * 255.0f);
+					u8 greenChannel = Math_RoundF32ToU32(texel.G * 255.0f);
+					u8 blueChannel = Math_RoundF32ToU32(texel.B * 255.0f);
 					
 					u32 pixelColor = ((redChannel << 24) |
 									  (greenChannel << 16) |

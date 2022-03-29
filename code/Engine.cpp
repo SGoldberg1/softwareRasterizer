@@ -309,7 +309,7 @@ ENGINE_UPDATE(EngineUpdate)
 	ClearBitmap(&buffer->Color, {0.1f, 0.1f, 0.1f, 0});
 	ClearDepthBuffer(&buffer->Depth, 0.0f);
 	
-	render_bitmap* texture = &state->TestBitmap;
+	render_bitmap* texture = &state->CheckerBoardBitmap;
 	engine_mesh* mesh = &state->Sphere;
 	local_persist f32 elapsedTime = 0;
 	elapsedTime += time->Delta;
@@ -361,10 +361,16 @@ ENGINE_UPDATE(EngineUpdate)
 			v2 uv0 = mesh->UVs[index0->UV];
 			v2 uv1 = mesh->UVs[index1->UV];
 			v2 uv2 = mesh->UVs[index2->UV];
+			
+			v3 frageNormal0 = Math_MultiplyM4x4(&model, mesh->Normals[index0->Normal], 0).XYZ;
+			v3 frageNormal1 = Math_MultiplyM4x4(&model, mesh->Normals[index1->Normal], 0).XYZ;
+			v3 frageNormal2 = Math_MultiplyM4x4(&model, mesh->Normals[index2->Normal], 0).XYZ;
+			
 			DrawTriangle(&buffer->Color, &buffer->Depth, texture,
 						 vertex0.XY, vertex1.XY, vertex2.XY, 
 						 uv0, uv1, uv2,
-						 cameraZ0, cameraZ1, cameraZ2, {0.7f, 0.3f, 0.3f, 0.0f});
+						 cameraZ0, cameraZ1, cameraZ2, {0.7f, 0.3f, 0.3f, 0.0f},
+						 frageNormal0, frageNormal1, frageNormal2);
 			
 #if 0
 			DrawLine2D(&buffer->Color, vertex0.XY, vertex1.XY, {0, 1, 0, 1});

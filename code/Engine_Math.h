@@ -323,6 +323,38 @@ V4(v3 vector, f32 w)
 	return(result);
 }
 
+inline v4
+V4(f32 x, f32 y, f32 z, f32 w)
+{
+	v4 result = { x, y, z, w };
+	return(result);
+}
+
+inline v4
+operator+(v4 &a, v4 b)
+{
+	v4 result = {a.X + b.X, a.Y + b.Y, a.Z + b.Z, a.W + b.W};
+	return(result);
+}
+
+inline v4&
+operator+=(v4 &a, v4 b)
+{
+	a = a + b;
+	return(a);
+}
+
+inline v4
+operator*(v4 a, f32 scalar)
+{
+	v4 result;
+	result.X = a.X * scalar;
+	result.Y = a.Y * scalar;
+	result.Z = a.Z * scalar;
+	result.W = a.W * scalar;
+	return(result);
+}
+
 union m4x4
 {
 	f32 E[16];
