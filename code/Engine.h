@@ -50,10 +50,12 @@ struct engine_mesh
 	s32 VertexCount;
 	s32 UVCount;
 	s32 NormalCount;
+	s32 TangentCount;
 	//vertex_attribute* Vertices;
 	v3* Vertices;
 	v3* Normals;
 	v2* UVs;
+	v4* Tangents;
 };
 
 

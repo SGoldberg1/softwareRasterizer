@@ -8,6 +8,7 @@
 #include "AssetProcessor_Common.h"
 #include "AssetProcessor_Main.h"
 
+#include "../Engine_Math.cpp"
 #include "../Engine_Memory.cpp"
 #include "AssetProcessor_Mesh.cpp"
 

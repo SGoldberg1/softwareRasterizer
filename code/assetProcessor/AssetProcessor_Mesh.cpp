@@ -260,8 +260,80 @@ union vertex_attribute
 };
 
 void
+ComputerTangentVectors(memory_block* vertexMemory, memory_block* triangleMemory, 
+					   memory_block* uvMemory, memory_block* normalMemory,
+					   memory_block* tangentMemory)
+{
+	s32 vertexCount = vertexMemory->Used / sizeof(v3);
+	s32 triangleCount = triangleMemory->Used / sizeof(triangle_index);
+	
+	triangle_index* triangles = (triangle_index*)triangleMemory->Base;
+	v3* vertices = (v3*)vertexMemory->Base;
+	v2* uvs = (v2*)uvMemory->Base;
+	v3* tangents = (v3*)malloc((sizeof(v3) * vertexCount) * 2);
+	v3* bitangents = (v3*)tangents + vertexCount;
+	
+	for(s32 index = 0; index < triangleCount; ++index)
+	{
+		triangle_index* index0 = triangles + index + 0;
+		triangle_index* index1 = triangles + index + 1;
+		triangle_index* index2 = triangles + index + 2;
+		v3 vertex0 = vertices[index0->Vertex];
+		v3 vertex1 = vertices[index1->Vertex];
+		v3 vertex2 = vertices[index2->Vertex];
+		v2 uv0 = uvs[index0->UV];
+		v2 uv1 = uvs[index1->UV];
+		v2 uv2 = uvs[index2->UV];
+		
+		v3 edge0 = vertex1 - vertex0;
+		v3 edge1 = vertex2 - vertex0;
+		
+		f32 x0 = uv1.X - uv0.X;
+		f32 x1 = uv2.X - uv0.X;
+		f32 y0 = uv1.Y - uv0.Y;
+		f32 y1 = uv2.Y - uv0.Y;
+		
+		f32 f = 1.0f / (x0 * y1 - x1 * y0);
+		
+		v3 tangent;
+		tangent.X = f * (y1 * edge0.X - y0 * edge1.X);
+		tangent.Y = f * (y1 * edge0.Y - y0 * edge1.Y);
+		tangent.Z = f * (y1 * edge0.Z - y0 * edge1.Z);
+		
+		v3 bitangent;
+		bitangent.X = f * (x0 * edge1.X - x1 * edge0.X);
+		bitangent.Y = f * (x0 * edge1.Y - x1 * edge0.Y);
+		bitangent.Z = f * (x0 * edge1.Z - x1 * edge0.Z);
+		
+		
+		tangents[index0->Vertex] += tangent;
+		tangents[index1->Vertex] += tangent;
+		tangents[index2->Vertex] += tangent;
+		
+		bitangents[index0->Vertex] += bitangent;
+		bitangents[index1->Vertex] += bitangent;
+		bitangents[index2->Vertex] += bitangent;
+	}
+	
+	v3* normals = (v3*)normalMemory->Base;
+	
+	for(s32 i = 0; i < vertexCount; ++i)
+	{
+		v3 t = tangents[i];
+		v3 b = bitangents[i];
+		v3 n = normals[i];
+		v4* outTangent = MemoryBlock_PushStruct(tangentMemory, v4);
+		//outTangent->XYZ = (t - n * Math_DotProductV3(n, t));
+		outTangent->XYZ = (t - n * Math_DotProductV3(n, t));
+		outTangent->W = (Math_DotProductV3(Math_CrossProductV3(t, b), n) > 0.0f) ? 1.0f : -1.0f;
+	}
+	
+	free(tangents);
+}
+
+void
 WriteEngineMesh(memory_block* vertexMemory, memory_block* triangleMemory, 
-				memory_block* uvMemory, memory_block* normalMemory, 
+				memory_block* uvMemory, memory_block* normalMemory, memory_block* tangentMemory, 
 				char* inFileName)
 {
 	char path[64] = {};
@@ -274,30 +346,35 @@ WriteEngineMesh(memory_block* vertexMemory, memory_block* triangleMemory,
 	mesh.TriangleCount = triangleMemory->Used / sizeof(triangle_index);
 	mesh.UVCount = uvMemory->Used / sizeof(v2);
 	mesh.NormalCount = normalMemory->Used / sizeof(v3);
+	mesh.TangentCount = tangentMemory->Used / sizeof(v4);
 	
 	mesh.TriangleOffset = vertexMemory->Used + sizeof(loadable_mesh);
 	mesh.NormalOffset = mesh.TriangleOffset + triangleMemory->Used;
 	mesh.UVOffset = mesh.NormalOffset + normalMemory->Used;
+	mesh.TangentOffset = mesh.UVOffset + uvMemory->Used;
 	
 	WriteFile(path, sizeof(loadable_mesh), &mesh, "w");
 	WriteFile(path, vertexMemory->Used, vertexMemory->Base, "a");
 	WriteFile(path, triangleMemory->Used, triangleMemory->Base, "a");
 	WriteFile(path, normalMemory->Used, normalMemory->Base, "a");
 	WriteFile(path, uvMemory->Used, uvMemory->Base, "a");
+	WriteFile(path, tangentMemory->Used, tangentMemory->Base, "a");
 }
 
 void
 ProcessAllWaveFrontOBJs(working_directory workingDirectory)
 {
-	char* memory = (char*)malloc(MegaBytes(4));
+	char* memory = (char*)malloc(MegaBytes(5));
 	memory_block vertexMemory;
 	memory_block triangleMemory;
 	memory_block uvMemory;
 	memory_block normalMemory;
+	memory_block tangentMemory;
 	MemoryBlock_Initialize(&uvMemory, MegaBytes(1), memory);
 	MemoryBlock_Initialize(&normalMemory, MegaBytes(1), memory + MegaBytes(1));
 	MemoryBlock_Initialize(&vertexMemory, MegaBytes(1), memory +  + MegaBytes(2));
 	MemoryBlock_Initialize(&triangleMemory, MegaBytes(1), memory + MegaBytes(3));
+	MemoryBlock_Initialize(&tangentMemory, MegaBytes(1), memory + MegaBytes(4));
 	
 	char filePathBuffer[128] = {};
 	char directoryBuffer[256] = {};
@@ -315,6 +392,8 @@ ProcessAllWaveFrontOBJs(working_directory workingDirectory)
 				MemoryBlock_Reset(&uvMemory);
 				MemoryBlock_Reset(&vertexMemory);
 				MemoryBlock_Reset(&triangleMemory);
+				MemoryBlock_Reset(&tangentMemory);
+				
 				GetLocalFileNamePath(directoryBuffer, filePathBuffer, directoryEntity->d_name);
 				
 				raw_file file = ReadTextFileAndNullTerminate(filePathBuffer);
@@ -395,8 +474,10 @@ ProcessAllWaveFrontOBJs(working_directory workingDirectory)
 				}//while(parsing)
 				
 				FreeRawFile(&file);
+				ComputerTangentVectors(&vertexMemory, &triangleMemory, &uvMemory, 
+									   &normalMemory, &tangentMemory);
 				WriteEngineMesh(&vertexMemory, &triangleMemory, &uvMemory, &normalMemory, 
-								directoryEntity->d_name);
+								&tangentMemory, directoryEntity->d_name);
 				
 				
 			}//if(directoryEntity->d_name[0] != '.')

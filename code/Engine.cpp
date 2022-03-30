@@ -192,10 +192,12 @@ LoadMesh(debug_file_read* readFile, char* fileName)
 		result.TriangleCount = mesh->TriangleCount;
 		result.UVCount = mesh->UVCount;
 		result.NormalCount = mesh->NormalCount;
+		result.TangentCount = mesh->TangentCount;
 		result.Vertices = (v3*)(mesh + 1);
 		result.Triangles = (triangle_index*)((u8*)mesh + mesh->TriangleOffset);
 		result.Normals = (v3*)((u8*)mesh + mesh->NormalOffset);
 		result.UVs = (v2*)((u8*)mesh + mesh->UVOffset);
+		result.Tangents = (v4*)((u8*)mesh + mesh->TangentOffset);
 		
 #if 0		
 		for(s32 i = 0; i < result.TriangleCount; ++i)
@@ -329,6 +331,8 @@ ENGINE_UPDATE(EngineUpdate)
 	render_bitmap* specularTexture = &state->BrickSpecular;
 	render_bitmap* occlusionTexture = &state->BrickOcclusion;
 	render_bitmap* normalTexture = &state->BrickNormal;
+	v4 color = {0.7f, 0.3f, 0.3f, 1.0f};
+	color = {1, 1, 1, 0};
 	
 	engine_mesh* mesh = &state->Sphere;
 	
@@ -348,65 +352,190 @@ ENGINE_UPDATE(EngineUpdate)
 		triangle_index* index0 = mesh->Triangles + index + 0;
 		triangle_index* index1 = mesh->Triangles + index + 1;
 		triangle_index* index2 = mesh->Triangles + index + 2;
-		v4 vertex0 = Math_MultiplyM4x4(&clipBasis, mesh->Vertices[index0->Vertex]);
-		v4 vertex1 = Math_MultiplyM4x4(&clipBasis, mesh->Vertices[index1->Vertex]);
-		v4 vertex2 = Math_MultiplyM4x4(&clipBasis, mesh->Vertices[index2->Vertex]);
 		
-		vertex0.XYZ *= 1.0f / vertex0.W;
-		vertex1.XYZ *= 1.0f / vertex1.W;
-		vertex2.XYZ *= 1.0f / vertex2.W;
+		v3 vertex0 = mesh->Vertices[index0->Vertex];
+		v3 vertex1 = mesh->Vertices[index1->Vertex];
+		v3 vertex2 = mesh->Vertices[index2->Vertex];
 		
-		vertex0.X = (vertex0.X + 1) * 0.5f * buffer->Color.Width;
-		vertex0.Y = (vertex0.Y + 1) * 0.5f * buffer->Color.Height;
+		v3 object0 = Math_MultiplyM4x4(&model, vertex0).XYZ;
+		v3 object1 = Math_MultiplyM4x4(&model, vertex1).XYZ;
+		v3 object2 = Math_MultiplyM4x4(&model, vertex2).XYZ;
 		
-		vertex1.X = (vertex1.X + 1) * 0.5f * buffer->Color.Width;
-		vertex1.Y = (vertex1.Y + 1) * 0.5f * buffer->Color.Height;
+		v4 clip0 = Math_MultiplyM4x4(&clipBasis, vertex0);
+		v4 clip1 = Math_MultiplyM4x4(&clipBasis, vertex1);
+		v4 clip2 = Math_MultiplyM4x4(&clipBasis, vertex2);
 		
-		vertex2.X = (vertex2.X + 1) * 0.5f * buffer->Color.Width;
-		vertex2.Y = (vertex2.Y + 1) * 0.5f * buffer->Color.Height;
+		clip0.XYZ *= 1.0f / clip0.W;
+		clip1.XYZ *= 1.0f / clip1.W;
+		clip2.XYZ *= 1.0f / clip2.W;
 		
-		if(Math_SignedAreaOfTriangle(vertex0.XY, vertex1.XY, vertex2.XY) >= 0.0f)
+		clip0.X = (clip0.X + 1) * 0.5f * buffer->Color.Width;
+		clip0.Y = (clip0.Y + 1) * 0.5f * buffer->Color.Height;
+		
+		clip1.X = (clip1.X + 1) * 0.5f * buffer->Color.Width;
+		clip1.Y = (clip1.Y + 1) * 0.5f * buffer->Color.Height;
+		
+		clip2.X = (clip2.X + 1) * 0.5f * buffer->Color.Width;
+		clip2.Y = (clip2.Y + 1) * 0.5f * buffer->Color.Height;
+		
+		if(Math_SignedAreaOfTriangle(clip0.XY, clip1.XY, clip2.XY) >= 0.0f)
 		{
-			f32 cameraZ0 = vertex0.W;
-			f32 cameraZ1 = vertex1.W;
-			f32 cameraZ2 = vertex2.W;
+			f32 cameraZ0 = clip0.W;
+			f32 cameraZ1 = clip1.W;
+			f32 cameraZ2 = clip2.W;
 			
-			ComputeDepthForTriangle(&buffer->Depth, vertex0.XY, vertex1.XY, vertex2.XY,
+			ComputeDepthForTriangle(&buffer->Depth, clip0.XY, clip1.XY, clip2.XY,
 									cameraZ0, cameraZ1, cameraZ2);
+			
+			
+#if 0			
+			// TODO(Stephen): Precompute tangent and bitangent for triangle
+			v3 edge0 = vertex1 - vertex0;
+			v3 edge1 = vertex2 - vertex0;
+			
+			f32 deltaU1 = uv1.X - uv0.X;
+			f32 deltaU2 = uv2.X - uv0.X;
+			f32 deltaV1 = uv1.Y - uv0.Y;
+			f32 deltaV2 = uv2.Y - uv0.Y;
+			
+			f32 f = 1.0f / (deltaU1 * deltaV2 - deltaU2 * deltaV1);
+			
+			v3 tangent;
+			tangent.X = f * (deltaV2 * edge0.X - deltaV1 * edge1.X);
+			tangent.Y = f * (deltaV2 * edge0.Y - deltaV1 * edge1.Y);
+			tangent.Z = f * (deltaV2 * edge0.Z - deltaV1 * edge1.Z);
+			
+			v3 bitangent;
+			bitangent.X = -f * (deltaU2 * edge0.X - deltaU1 * edge1.X);
+			bitangent.Y = -f * (deltaU2 * edge0.Y - deltaU1 * edge1.Y);
+			bitangent.Z = -f * (deltaU2 * edge0.Z - deltaU1 * edge1.Z);
+			
+			tangent = Math_NormalizedV3(tangent);
+			bitangent = Math_NormalizedV3(bitangent);
+#endif
 			
 			v2 uv0 = mesh->UVs[index0->UV];
 			v2 uv1 = mesh->UVs[index1->UV];
 			v2 uv2 = mesh->UVs[index2->UV];
 			
-			v3 frageNormal0 = Math_MultiplyM4x4(&model, mesh->Normals[index0->Normal], 0).XYZ;
-			v3 frageNormal1 = Math_MultiplyM4x4(&model, mesh->Normals[index1->Normal], 0).XYZ;
-			v3 frageNormal2 = Math_MultiplyM4x4(&model, mesh->Normals[index2->Normal], 0).XYZ;
+			v3 fragNormal0 = Math_MultiplyM4x4(&model, mesh->Normals[index0->Normal], 0).XYZ;
+			v3 fragNormal1 = Math_MultiplyM4x4(&model, mesh->Normals[index1->Normal], 0).XYZ;
+			v3 fragNormal2 = Math_MultiplyM4x4(&model, mesh->Normals[index2->Normal], 0).XYZ;
 			
-			v4 color = {0.7f, 0.3f, 0.3f, 1.0f};
-			color = {1, 1, 1, 0};
+			v4 tangent0 = mesh->Tangents[index0->Vertex];
+			v4 tangent1 = mesh->Tangents[index1->Vertex];
+			v4 tangent2 = mesh->Tangents[index2->Vertex];
 			
-			v3 fragPosition0 = Math_MultiplyM4x4(&model, mesh->Vertices[index0->Vertex]).XYZ;
-			v3 fragPosition1 = Math_MultiplyM4x4(&model, mesh->Vertices[index1->Vertex]).XYZ;
-			v3 fragPosition2 = Math_MultiplyM4x4(&model, mesh->Vertices[index2->Vertex]).XYZ;
+			v3 bitangent0 = Math_CrossProductV3(mesh->Normals[index0->Normal], tangent0.XYZ);
+			bitangent0 *= tangent0.W;
+			v3 bitangent1 = Math_CrossProductV3(mesh->Normals[index1->Normal], tangent0.XYZ);
+			bitangent1 *= tangent1.W;
+			v3 bitangent2 = Math_CrossProductV3(mesh->Normals[index2->Normal], tangent0.XYZ);
+			bitangent2 *= tangent2.W;
 			
+			v3 lightDirection = -Math_NormalizedV3({0, -1, -1});
+			
+			v3 tangentView0;
+			tangentView0.X = Math_DotProductV3(tangent0.XYZ, -object0);
+			tangentView0.Y = Math_DotProductV3(bitangent0, -object0);
+			tangentView0.Z = Math_DotProductV3(fragNormal0, -object0);
+			
+			v3 tangentView1;
+			tangentView1.X = Math_DotProductV3(tangent1.XYZ, -object1);
+			tangentView1.Y = Math_DotProductV3(bitangent1, -object1);
+			tangentView1.Z = Math_DotProductV3(fragNormal1, -object1);
+			
+			v3 tangentView2;
+			tangentView2.X = Math_DotProductV3(tangent2.XYZ, -object2);
+			tangentView2.Y = Math_DotProductV3(bitangent2, -object2);
+			tangentView2.Z = Math_DotProductV3(fragNormal2, -object2);
+			
+			v3 tangentLight0;
+			tangentLight0.X = Math_DotProductV3(tangent0.XYZ, lightDirection);
+			tangentLight0.X = Math_DotProductV3(bitangent0, lightDirection);
+			tangentLight0.X = Math_DotProductV3(fragNormal0, lightDirection);
+			
+			v3 tangentLight1;
+			tangentLight1.X = Math_DotProductV3(tangent1.XYZ, lightDirection);
+			tangentLight1.X = Math_DotProductV3(bitangent1, lightDirection);
+			tangentLight1.X = Math_DotProductV3(fragNormal1, lightDirection);
+			
+			v3 tangentLight2;
+			tangentLight2.X = Math_DotProductV3(tangent2.XYZ, lightDirection);
+			tangentLight2.X = Math_DotProductV3(bitangent2, lightDirection);
+			tangentLight2.X = Math_DotProductV3(fragNormal2, lightDirection);
+			
+#if 1
 			DrawTriangle(&buffer->Color, &buffer->Depth, 
 						 diffuseTexture, specularTexture, 
 						 occlusionTexture, normalTexture,
-						 vertex0.XY, vertex1.XY, vertex2.XY, 
+						 clip0.XY, clip1.XY, clip2.XY, 
 						 uv0, uv1, uv2,
 						 cameraZ0, cameraZ1, cameraZ2,
-						 fragPosition0, fragPosition1, fragPosition2,
-						 frageNormal0, frageNormal1, frageNormal2, color);
+						 object0, object1, object2,
+						 fragNormal0, fragNormal1, fragNormal2,
+						 tangentView0, tangentView1, tangentView2, 
+						 tangentLight0, tangentLight2, tangentLight2, 
+						 tangent0.XYZ, tangent1.XYZ, tangent2.XYZ, 
+						 bitangent0, bitangent1, bitangent2, color);
+#endif
+			
+#if 0
+			// NOTE(Stephen): Display Tangents and bitangents
+			f32 tangentScale = 0.25f;
+			v4 t0 = Math_MultiplyM4x4(&clipBasis, tangent0.XYZ * tangentScale + vertex0);
+			v4 b0 = Math_MultiplyM4x4(&clipBasis, bitangent0 * tangentScale + vertex0);
+			
+			v4 t1 = Math_MultiplyM4x4(&clipBasis, tangent1.XYZ * tangentScale + vertex1);
+			v4 b1 = Math_MultiplyM4x4(&clipBasis, bitangent1 * tangentScale + vertex1);
+			
+			v4 t2 = Math_MultiplyM4x4(&clipBasis, tangent2.XYZ * tangentScale + vertex2);
+			v4 b2 = Math_MultiplyM4x4(&clipBasis, bitangent2 * tangentScale + vertex2);
+			
+			t0.XYZ *= 1.0f / t0.W; 
+			b0.XYZ *= 1.0f / b0.W; 
+			
+			t1.XYZ *= 1.0f / t1.W; 
+			b1.XYZ *= 1.0f / b1.W; 
+			
+			t2.XYZ *= 1.0f / t2.W; 
+			b2.XYZ *= 1.0f / b2.W; 
+			
+			t0.X = (t0.X + 1) * 0.5f * buffer->Color.Width;
+			t0.Y = (t0.Y + 1) * 0.5f * buffer->Color.Height;
+			b0.X = (b0.X + 1) * 0.5f * buffer->Color.Width;
+			b0.Y = (b0.Y + 1) * 0.5f * buffer->Color.Height;
+			
+			t1.X = (t1.X + 1) * 0.5f * buffer->Color.Width;
+			t1.Y = (t1.Y + 1) * 0.5f * buffer->Color.Height;
+			b1.X = (b1.X + 1) * 0.5f * buffer->Color.Width;
+			b1.Y = (b1.Y + 1) * 0.5f * buffer->Color.Height;
+			
+			t2.X = (t2.X + 1) * 0.5f * buffer->Color.Width;
+			t2.Y = (t2.Y + 1) * 0.5f * buffer->Color.Height;
+			b2.X = (b2.X + 1) * 0.5f * buffer->Color.Width;
+			b2.Y = (b2.Y + 1) * 0.5f * buffer->Color.Height;
+			
+			DrawLine2D(&buffer->Color, clip0.XY, t0.XY, {0.2f, 0.3f, 0.8f, 1});
+			DrawLine2D(&buffer->Color, clip0.XY, b0.XY, {0.2f, 0.3f, 0.8f, 1});
+			
+			DrawLine2D(&buffer->Color, clip1.XY, t1.XY, {0.2f, 0.3f, 0.8f, 1});
+			DrawLine2D(&buffer->Color, clip1.XY, b1.XY, {0.2f, 0.3f, 0.8f, 1});
+			
+			DrawLine2D(&buffer->Color, clip2.XY, t2.XY, {0.2f, 0.3f, 0.8f, 1});
+			DrawLine2D(&buffer->Color, clip2.XY, b2.XY, {0.2f, 0.3f, 0.8f, 1});
+			
+#endif
 			
 #if 0
 			// NOTE(Stephen): Display Triangle Normals
-			f32 nScale = 0.25f;
-			v4 n0 = Math_MultiplyM4x4(&clipBasis, mesh->Normals[index0->Normal] * nScale +
-									  mesh->Vertices[index0->Vertex]);
-			v4 n1 = Math_MultiplyM4x4(&clipBasis, mesh->Normals[index1->Normal] * nScale +
-									  mesh->Vertices[index1->Vertex]);
-			v4 n2 = Math_MultiplyM4x4(&clipBasis, mesh->Normals[index2->Normal] * nScale +
-									  mesh->Vertices[index2->Vertex]);
+			f32 normalScale = 0.25f;
+			v4 n0 = Math_MultiplyM4x4(&clipBasis, mesh->Normals[index0->Normal] * normalScale +
+									  vertex0);
+			v4 n1 = Math_MultiplyM4x4(&clipBasis, mesh->Normals[index1->Normal] * normalScale +
+									  vertex1);
+			v4 n2 = Math_MultiplyM4x4(&clipBasis, mesh->Normals[index2->Normal] * normalScale +
+									  vertex2);
 			
 			n0.XYZ *= 1.0f / n0.W; 
 			n1.XYZ *= 1.0f / n1.W; 
@@ -421,16 +550,17 @@ ENGINE_UPDATE(EngineUpdate)
 			n2.X = (n2.X + 1) * 0.5f * buffer->Color.Width;
 			n2.Y = (n2.Y + 1) * 0.5f * buffer->Color.Height;
 			
-			DrawLine2D(&buffer->Color, vertex0.XY, n0.XY, {0.2f, 0.3f, 0.8f, 1});
-			DrawLine2D(&buffer->Color, vertex1.XY, n1.XY, {0.2f, 0.3f, 0.8f, 1});
-			DrawLine2D(&buffer->Color, vertex2.XY, n2.XY, {0.2f, 0.3f, 0.8f, 1});
+			DrawLine2D(&buffer->Color, clip0.XY, n0.XY, {0.2f, 0.3f, 0.8f, 1});
+			DrawLine2D(&buffer->Color, clip1.XY, n1.XY, {0.2f, 0.3f, 0.8f, 1});
+			DrawLine2D(&buffer->Color, clip2.XY, n2.XY, {0.2f, 0.3f, 0.8f, 1});
+			
 #endif
 			
 #if 0
 			// NOTE(Stephen): Display triangle edges
-			DrawLine2D(&buffer->Color, vertex0.XY, vertex1.XY, {0, 1, 0, 1});
-			DrawLine2D(&buffer->Color, vertex0.XY, vertex2.XY, {0, 1, 0, 1});
-			DrawLine2D(&buffer->Color, vertex1.XY, vertex2.XY, {0, 1, 0, 1});
+			DrawLine2D(&buffer->Color, clip0.XY, clip1.XY, {0, 1, 0, 1});
+			DrawLine2D(&buffer->Color, clip0.XY, clip2.XY, {0, 1, 0, 1});
+			DrawLine2D(&buffer->Color, clip1.XY, clip2.XY, {0, 1, 0, 1});
 #endif
 			
 		}

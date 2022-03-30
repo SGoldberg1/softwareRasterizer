@@ -22,26 +22,30 @@ Mesh data used in the engine store:
 -The number of triangles(these are stored as three values. Each representing
 						The index for a vertex, uv, and normal) (32-bit signed)
 -The number of uvs (32-bit signed)
--The number normals (32-bit signed)
+-The number of normals (32-bit signed)
+-The number of tangets (32-bit signed)
 -The triangle offset, which is the number of bytes from the head of the file (32-bit signed)
 -The normal offset, which is the number of byte from the head of the file (32-bit signed)
 -The UV offset, which is the number of bytes from the head of the file (32-bit signed)
+-The tangent offset, which is the number of bytes from the head of the file (32-bit signed)
 
 Memory Layout:
 |vertex count|triangle count|uv count|normal count|triangle offset|normal offset|uv offset|vertex0|
-vertex1|...|triangle0|triangle1|...|normal0|normal1|...|uv0|uv1|...
+vertex1|...|triangle0|triangle1|...|normal0|normal1|...|uv0|uv1|...|tangent0|tangen1|...
 
 struct loadable_mesh
 {
 	s32 VertexCount;
 	s32 TriangleCount;
 	s32 UVCount;
+	s32 TangentCount;
 	s32 NormalCount;
 	// NOTE(Stephen): Vertex offset is right after the loadable mesh
 	//s32 VertexOffset;
 	s32 TriangleOffset;
 	s32 NormalOffset;
 	s32 UVOffset;
+	s32 TangentOffset;
 };
 
 The memory layout for each triangle
