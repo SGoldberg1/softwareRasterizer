@@ -27,10 +27,8 @@ struct bitmap_header
 	u32 RedMask;
     u32 GreenMask;
     u32 BlueMask;
-	
 };
 #pragma pack(pop)
-
 
 union vertex_attribute
 {
@@ -45,19 +43,10 @@ union vertex_attribute
 
 struct engine_mesh
 {
-	s32 TriangleCount;
-	triangle_index* Triangles;
 	s32 VertexCount;
-	s32 UVCount;
-	s32 NormalCount;
-	s32 TangentCount;
-	//vertex_attribute* Vertices;
-	v3* Vertices;
-	v3* Normals;
-	v2* UVs;
 	v4* Tangents;
+	vertex_attribute* Attributes;
 };
-
 
 struct engine_state
 {
@@ -73,8 +62,10 @@ struct engine_state
 	
 	engine_mesh Cube;
 	engine_mesh Plane;
-	engine_mesh Rectangle;
 	engine_mesh Sphere;
+	
+	render_matrial BrickMaterial;
+	render_matrial TileMaterial;
 	
 	render_bitmap BrickDiffuse;
 	render_bitmap BrickSpecular;

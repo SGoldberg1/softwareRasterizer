@@ -20,25 +20,26 @@ WriteEngineBitmap(raw_file file, char* inFileName)
 	result.Height = -header->Height;
 	result.Width = header->Width;
 	result.Height = header->Height;
-	
-	// NOTE(Stephen): Gimp stores bitmaps as ARGB, need to swizzle...
+	s32 bytesPerPixel = header->BitsPerPixel / 8;
 	u32 redChannel = header->RedMask;
 	u32 greenChannel = header->GreenMask;
 	u32 blueChannel = header->BlueMask;
 	u32 alphaChannel = 0xFF000000;
 	
-	u32* startPixel = (u32*)((u8*)header + header->PixelOffset);
-	
-	for(s32 i = 0; i < (result.Width * result.Height); ++i)
+	// NOTE(Stephen): Gimp stores bitmaps as ARGB, need to swizzle...
+	if(bytesPerPixel == 4)
 	{
-		*startPixel = (((redChannel & *startPixel)   << 8) |
-					   ((greenChannel & *startPixel) << 8) |
-					   ((blueChannel & *startPixel)  << 8) |
-					   ((alphaChannel & *startPixel) >> 24));
-		++startPixel;
+		u32* startPixel = (u32*)((u8*)header + header->PixelOffset);
+		
+		for(s32 i = 0; i < (result.Width * result.Height); ++i)
+		{
+			*startPixel = (((redChannel & *startPixel)   << 8) |
+						   ((greenChannel & *startPixel) << 8) |
+						   ((blueChannel & *startPixel)  << 8) |
+						   ((alphaChannel & *startPixel) >> 24));
+			++startPixel;
+		}
 	}
-	
-	startPixel = (u32*)((u8*)header + header->PixelOffset);
 	
 	char path[128] = {};
 	char fileName[128] = {};
@@ -46,8 +47,8 @@ WriteEngineBitmap(raw_file file, char* inFileName)
 	GetLocalFileNamePath(ASSET_IMAGES_DIRECTORY, path, fileName);
 	
 	WriteFile(path, sizeof(loadable_bitmap), &result, "w");
-	WriteFile(path, (result.Width * result.Height * sizeof(u32)), 
-			  startPixel, "a");
+	WriteFile(path, (result.Width * bytesPerPixel * result.Height), 
+			  (u8*)header + header->PixelOffset, "a");
 	
 }
 
@@ -68,9 +69,11 @@ ProcessAllBitmaps(working_directory workingDirectory)
 			if(directoryEntity->d_name[0] != '.')
 			{
 				GetLocalFileNamePath(directoryBuffer, filePathBuffer, directoryEntity->d_name);
+				
 				raw_file file = ReadBinaryFile(filePathBuffer);
 				WriteEngineBitmap(file, directoryEntity->d_name);
 				FreeRawFile(&file);
+				
 			}
 		}
 		closedir(bitmapDirectory);

@@ -2,7 +2,7 @@
 debugFlags='-DENGINE_DEBUG=1 -g'
 engineFlags='-fPIC -shared -msse4.1'
 platformFlags='-rdynamic'
-commonFlags='-O0 -Wall -Wno-missing-braces -Wno-writable-strings'
+commonFlags='-O3 -Wall -Wno-missing-braces -Wno-writable-strings'
 platformLibraries='-lSDL2'
 
 ME="$(readlink -f "$0")"
