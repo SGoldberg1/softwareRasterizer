@@ -67,6 +67,11 @@ struct engine_state
 	render_matrial BrickMaterial;
 	render_matrial TileMaterial;
 	
+	render_bitmap ShadowMap;
+	m4x4 LightProjectioneMatrix;
+	m4x4 LightSpaceMatrix;
+	
+	
 	render_bitmap BrickDiffuse;
 	render_bitmap BrickSpecular;
 	render_bitmap BrickOcclusion;

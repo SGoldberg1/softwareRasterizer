@@ -249,8 +249,8 @@ main(int argc, char** args)
 			
 			if(renderer)
 			{
-				s32 bufferWidth = GlobalWindowWidth;
-				s32 bufferHeight = GlobalWindowHeight;
+				s32 bufferWidth = GlobalWindowWidth / 2;
+				s32 bufferHeight = GlobalWindowHeight / 2;
 				
 				printf("%d, %d\n", bufferWidth, bufferHeight);
 				

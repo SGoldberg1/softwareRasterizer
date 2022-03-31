@@ -5,7 +5,7 @@
 
 struct render_matrial
 {
-	f32 SpecularIntensisty;
+	f32 SpecularIntensity;
 	f32 SpecularShininess;
 	render_bitmap Diffuse;
 	render_bitmap Normal;

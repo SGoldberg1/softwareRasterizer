@@ -1,6 +1,50 @@
 
 
 void
+DrawBitmap(render_bitmap* buffer, render_bitmap* source, 
+		   v2 position, v2 dimensions)
+{
+	s32 left = Math_RoundF32ToS32(position.X);
+	s32 right = (s32)(left + dimensions.Width);
+	s32 top = Math_RoundF32ToS32(position.Y);
+	s32 bottom = (s32)(top + dimensions.Height);
+	
+	if(left < 0) { left = 0; }
+	if(top < 0) { top = 0; }
+	if(right >= buffer->Width) { right = buffer->Width - 1; }
+	if(bottom >= buffer->Height) { bottom = buffer->Height - 1; }
+	
+	u32* destinationPixel;
+	u32* destinationRow = (u32*)buffer->Pixels + left + top * buffer->Width;
+	
+	v2 axisX = V2(dimensions.Width, 0);
+	v2 axisY = V2(0, dimensions.Height);
+	f32 oneOverMagnitudeX = 1.0f / Math_SquaredMagnitudeV2(axisX);
+	f32 oneOverMagnitudeY = 1.0f / Math_SquaredMagnitudeV2(axisY);
+	
+	for(s32 y = top; y <= bottom; ++y)
+	{
+		destinationPixel= destinationRow;
+		for(s32 x = left; x <= right; ++x)
+		{
+			v2 pixelPosition = V2(x, y);
+			
+			f32 u = Math_DotProductV2(pixelPosition - position, axisY) * oneOverMagnitudeY;
+			f32 v = Math_DotProductV2(pixelPosition - position, axisX) * oneOverMagnitudeX;
+			
+			f32 texelY = Math_RoundF32(u * source->Height);
+			f32 texelX = Math_RoundF32(v * source->Width);
+			
+			u32* sourcePixel = (u32*)source->Pixels + (s32)texelY * source->Height + (s32)texelX;
+			*destinationPixel++ = *sourcePixel;
+		}
+		
+		destinationRow += buffer->Width;
+	}
+	
+}
+
+void
 DrawLine2D(render_bitmap* buffer, v2 start, v2 end, v4 color)
 {
 	u32 pixelColor = PackV4ToU32(color);
@@ -110,10 +154,46 @@ DrawRectangle(render_bitmap* buffer,
 	}
 }
 
-inline f32
-NDCToCameraZ(f32 ndcZ, f32 farPlane, f32 nearPlane)
+v3
+ComputeLightByDirection(v3 lightDirection, v3 fragPosition, v3 normal,
+						v3 lightColor, render_matrial* material, v2 uv)
 {
-	f32 result = -(farPlane * nearPlane) / (ndcZ * (farPlane - nearPlane) + farPlane);
+	v3 result = {};
+	f32 diffuseFactor = Math_DotProductV3(lightDirection, normal);
+	v3 diffuseColor = lightColor * diffuseFactor;
+	
+	v3 specularColor = {};
+	u32* specularPixels = (u32*)material->Specular.Pixels;
+	
+	if(diffuseFactor > 0.0f)
+	{
+		v3 halfwayDirection = Math_NormalizedV3(lightDirection - fragPosition);
+		f32 specularFactor = Math_DotProductV3(halfwayDirection, normal);
+		//v3 reflect = Math_ReflectV3(lightDirection, fragNormal);
+		//specularFactor = Math_DotProductV3(reflect, -fragPosition);
+		
+		if(specularFactor > 0.0f)
+		{
+			specularFactor = Math_Pow(Math_Clamp01(specularFactor), material->SpecularShininess);
+			specularColor =
+				lightColor * Math_MaxF32(specularFactor * material->SpecularIntensity, 0);
+			//Apply Specular Texture
+			u32 textureX = Math_RoundF32ToS32(uv.X * (material->Specular.Width - 1));
+			u32 textureY = Math_RoundF32ToS32((material->Specular.Height - 1) * (uv.Y)); 
+			u32 textureSample =
+				specularPixels[textureY * material->Specular.Width + textureX];
+			
+			f32 specR = (f32)((textureSample >> 24) & 0xFF) * OneOver255;
+			f32 specG = (f32)((textureSample >> 16) & 0xFF) * OneOver255;
+			f32 specB = (f32)((textureSample >> 8 ) & 0xFF) * OneOver255;
+			specularColor.X *= specR;
+			specularColor.Y *= specG;
+			specularColor.Z *= specB;
+			
+		}
+	}
+	
+	result = (diffuseColor + specularColor);
 	return(result);
 }
 
@@ -155,12 +235,24 @@ DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_matrial* materi
 	f32 oneOverCameraZ2 = 1.0f / cameraZ2;
 	
 	v3 lightDirection = -Math_NormalizedV3({-1, -1, -1});
-	f32 lightIntensityDirection = 2.0f;
+	f32 lightIntensityDirection = 1.0f;
 	v3 lightColor = V3(0.957f, 0.914f, 0.608f) * lightIntensityDirection;
-	lightColor = V3(1, 1, 1) * lightIntensityDirection;
+	lightColor = V3(0, 1, 0) * lightIntensityDirection;
 	
-	f32 specularIntensity = material->SpecularIntensisty;
-	f32 shininess = material->SpecularShininess;
+	v3 lightDirection2 = -Math_NormalizedV3({1, 0, 1});
+	f32 lightIntensityDirection2 = 1.0f;
+	v3 lightColor2 = V3(1, 0, 0) * lightIntensityDirection2;
+	
+	v3 lightDirection3 = -Math_NormalizedV3({1, 0, -1});
+	f32 lightIntensityDirection3 = 2.0f;
+	v3 lightColor3 = V3(0, 0, 1) * lightIntensityDirection3;
+	
+	v3 lightDirection4 = -Math_NormalizedV3({-1, -1, 1});
+	f32 lightIntensityDirection4 = 1.0f;
+	v3 lightColor4 = V3(1, 1, 1) * lightIntensityDirection4;
+	
+	v3 lights[4] = { lightDirection, lightDirection2, lightDirection3, lightDirection4 };
+	v3 lightColors[4] = { lightColor, lightColor2, lightColor3, lightColor4 };
 	
 	//Perspective correct interpolation per vertex attribute
 	uv0 *= oneOverCameraZ0;
@@ -256,8 +348,10 @@ DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_matrial* materi
 												  normalMap.Y * bitangent + 
 												  normalMap.Z * fragNormal);
 					
-					f32 diffuseFactor = Math_DotProductV3(lightDirection, normal);
+					
+#if 0
 					//Compute Specular
+					f32 diffuseFactor = Math_DotProductV3(lightDirection, normal);
 					
 					v3 specularColor = {};
 					
@@ -270,9 +364,10 @@ DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_matrial* materi
 						
 						if(specularFactor > 0.0f)
 						{
-							specularFactor = Math_Pow(Math_Clamp01(specularFactor), shininess);
+							specularFactor = Math_Pow(Math_Clamp01(specularFactor), 
+													  material->SpecularShininess);
 							specularColor =
-								lightColor * Math_MaxF32(specularFactor * specularIntensity, 0);
+								lightColor * Math_MaxF32(specularFactor * material->SpecularIntensity, 0);
 							//Apply Specular Texture
 							textureX = Math_RoundF32ToS32(uv.X * (material->Specular.Width - 1));
 							textureY = Math_RoundF32ToS32((material->Specular.Height - 1) * (uv.Y)); 
@@ -282,14 +377,28 @@ DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_matrial* materi
 							f32 specR = (f32)((textureSample >> 24) & 0xFF) * OneOver255;
 							f32 specG = (f32)((textureSample >> 16) & 0xFF) * OneOver255;
 							f32 specB = (f32)((textureSample >> 8 ) & 0xFF) * OneOver255;
+							
+#if 1
 							specularColor.X *= specR;
 							specularColor.Y *= specG;
 							specularColor.Z *= specB;
+#endif
+							
 						}
 					}
 					
-					
 					v3 finalLightColor = (lightColor * diffuseFactor + specularColor);
+#else
+					
+					v3 finalLightColor = {};
+					for(s32 i = 0; i < ArrayLength(lights); ++i)
+					{
+						finalLightColor += ComputeLightByDirection(lights[i], fragPosition, normal,
+																   lightColors[i], material, uv);
+					}
+					
+#endif
+					
 					
 					//Apply Ambient Occlusion
 					textureX = Math_RoundF32ToS32(uv.X * (material->Occlusion.Width - 1));
