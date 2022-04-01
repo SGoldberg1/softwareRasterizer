@@ -197,47 +197,35 @@ ComputeLightByDirection(v3 lightDirection, v3 fragPosition, v3 normal,
 	return(result);
 }
 
+struct render_fragment
+{
+	f32 WorldZ;
+	v2 ScreenPosition;
+	v3 Normal;
+	v3 Position;
+	v3 ShadowMapCoord;
+	v3 Bitangent;
+	v3 Tangent;
+};
+
 internal_function void
 DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_bitmap* shadowMap,
 			 render_matrial* material,
 			 v3 lightUV0, v3 lightUV1, v3 lightUV2,
-			 v2 pixel0, v2 pixel1, v2 pixel2, v2 uv0, v2 uv1, v2 uv2,
-			 f32 oneOverCameraZ0, f32 oneOverCameraZ1, f32 oneOverCameraZ2, 
+			 v2 screen0, v2 screen1, v2 screen2, v2 uv0, v2 uv1, v2 uv2,
+			 f32 z0, f32 z1, f32 z2, 
 			 v3 fragPosition0, v3 fragPosition1, v3 fragPosition2, 
 			 v3 fragNormal0, v3 fragNormal1, v3 fragNormal2, 
 			 v3 tangent0, v3 tangent1, v3 tangent2, 
 			 v3 bitangent0, v3 bitangent1, v3 bitangent2)
 {
 	
-	s32 left = Math_RoundF32ToS32(Math_MinF32(pixel0.X, Math_MinF32(pixel1.X, pixel2.X)));
-	s32 right = Math_RoundF32ToS32(Math_MaxF32(pixel0.X, Math_MaxF32(pixel1.X, pixel2.X)));
-	s32 top = Math_RoundF32ToS32(Math_MinF32(pixel0.Y, Math_MinF32(pixel1.Y, pixel2.Y)));
-	s32 bottom = Math_RoundF32ToS32(Math_MaxF32(pixel0.Y, Math_MaxF32(pixel1.Y, pixel2.Y)));
-	
-	//Scissor Rectangle
-	if(left < 0) { left = 0; };
-	if(top < 0) { top = 0; };
-	if(bottom >= buffer->Height) { bottom = (buffer->Height - 1); };
-	if(right >= buffer->Width) { right = (buffer->Width - 1); };
-	
-	u32* colorBufferPixel;
-	u32* colorbufferRow = (u32*)buffer->Pixels + left + top * buffer->Width;
-	
-	f32* depthBufferPixel;
-	f32* depthbufferRow = (f32*)depth->Pixels + left + top * depth->Width;
-	
-	u32* diffusePixels = (u32*)material->Diffuse.Pixels;
-	u32* occlusionPixels = (u32*)material->Occlusion.Pixels;
-	u8* normalPixels = (u8*)material->Normal.Pixels;
-	f32* shadowMapPixels = (f32*)shadowMap->Pixels;
-	
 	v3 lightDirection = -Math_NormalizedV3({-1, -1, -1});
 	f32 lightIntensityDirection = 1.0f;
 	v3 lightColor = V3(0.957f, 0.914f, 0.608f) * lightIntensityDirection;
 	lightColor = V3(0, 1, 0) * lightIntensityDirection;
 	
-#if 1	
-	
+#if 1
 	v3 lightDirection2 = -Math_NormalizedV3({1, 0, 1});
 	f32 lightIntensityDirection2 = 1.0f;
 	v3 lightColor2 = V3(1, 0, 0) * lightIntensityDirection2;
@@ -258,9 +246,39 @@ DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_bitmap* shadowM
 #endif
 	
 	
+	s32 left = Math_RoundF32ToS32(Math_MinF32(screen0.X, Math_MinF32(screen1.X, screen2.X)));
+	s32 right = Math_RoundF32ToS32(Math_MaxF32(screen0.X, Math_MaxF32(screen1.X, screen2.X)));
+	s32 top = Math_RoundF32ToS32(Math_MinF32(screen0.Y, Math_MinF32(screen1.Y, screen2.Y)));
+	s32 bottom = Math_RoundF32ToS32(Math_MaxF32(screen0.Y, Math_MaxF32(screen1.Y, screen2.Y)));
+	
+	//Scissor Rectangle
+	if(left < 0) { left = 0; };
+	if(top < 0) { top = 0; };
+	if(bottom >= buffer->Height) { bottom = (buffer->Height - 1); };
+	if(right >= buffer->Width) { right = (buffer->Width - 1); };
+	
+	u32* colorBufferPixel;
+	u32* colorbufferRow = (u32*)buffer->Pixels + left + top * buffer->Width;
+	
+	f32* depthBufferPixel;
+	f32* depthbufferRow = (f32*)depth->Pixels + left + top * depth->Width;
+	
+	u32* diffusePixels = (u32*)material->Diffuse.Pixels;
+	u32* occlusionPixels = (u32*)material->Occlusion.Pixels;
+	u8* normalPixels = (u8*)material->Normal.Pixels;
+	f32* shadowMapPixels = (f32*)shadowMap->Pixels;
+	
 	//Perspective correct interpolation per vertex attribute
 	
-	f32 oneOverArea = 1.0f / Math_SignedAreaOfTriangle(pixel0, pixel1, pixel2);
+	f32 oneOverArea = 1.0f / Math_SignedAreaOfTriangle(screen0, screen1, screen2);
+	
+	f32 oneOverCameraZ0 = 1.0f / z0;
+	f32 oneOverCameraZ1 = 1.0f / z1;
+	f32 oneOverCameraZ2 = 1.0f / z2;
+	
+	oneOverCameraZ0 = z0;
+	oneOverCameraZ1 = z1;
+	oneOverCameraZ2 = z2;
 	
 	uv0 *= oneOverCameraZ0;
 	uv1 *= oneOverCameraZ1;
@@ -273,11 +291,11 @@ DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_bitmap* shadowM
 		
 		for(s32 x = left; x <= right; ++x)
 		{
-			v2 pixelPosition = V2(x + 0.5f, y + 0.5f);
+			v2 screenPosition = V2(x + 0.5f, y + 0.5f);
 			
-			f32 u = Math_SignedAreaOfTriangle(pixel0, pixelPosition, pixel2);
-			f32 v = Math_SignedAreaOfTriangle(pixel0, pixel1, pixelPosition);
-			f32 s = Math_SignedAreaOfTriangle(pixelPosition, pixel1, pixel2);
+			f32 u = Math_SignedAreaOfTriangle(screen0, screenPosition, screen2);
+			f32 v = Math_SignedAreaOfTriangle(screen0, screen1, screenPosition);
+			f32 s = Math_SignedAreaOfTriangle(screenPosition, screen1, screen2);
 			
 			if(u >= 0.0f && v >= 0.0f && s >= 0.0f)
 			{
@@ -346,10 +364,11 @@ DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_bitmap* shadowM
 					bitangent.Y = s * bitangent0.Y + u * bitangent1.Y + v * bitangent2.Y;
 					bitangent.Z = s * bitangent0.Z + u * bitangent1.Z + v * bitangent2.Z;
 					//bitangent = Math_NormalizedV3(bitangent);
+					
 					v3 normal = Math_NormalizedV3(normalMap.X * tangent + 
 												  normalMap.Y * bitangent + 
 												  normalMap.Z * fragNormal);
-					
+					//normal = fragNormal;
 					
 					v3 finalLightColor = {};
 					for(s32 i = 0; i < ArrayLength(lights); ++i)
@@ -357,7 +376,6 @@ DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_bitmap* shadowM
 						finalLightColor += ComputeLightByDirection(lights[i], fragPosition, normal,
 																   lightColors[i], material, uv);
 					}
-					
 					
 					//Apply Ambient Occlusion
 					textureX = Math_RoundF32ToS32(uv.X * (material->Occlusion.Width - 1));
@@ -374,18 +392,6 @@ DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_bitmap* shadowM
 					
 					//Compute Final Pixel Color
 					texel.RGB = Math_HadamardProduct(texel.RGB * OneOverPI, finalLightColor);
-					texel.RGB.X = Math_Clamp01(texel.RGB.X);
-					texel.RGB.Y = Math_Clamp01(texel.RGB.Y);
-					texel.RGB.Z = Math_Clamp01(texel.RGB.Z);
-					u8 redChannel = Math_RoundF32ToU32(texel.R * 255.0f);
-					u8 greenChannel = Math_RoundF32ToU32(texel.G * 255.0f);
-					u8 blueChannel = Math_RoundF32ToU32(texel.B * 255.0f);
-					
-					u32 pixelColor = ((redChannel << 24) |
-									  (greenChannel << 16) |
-									  (blueChannel << 8 ) |
-									  (0));
-					
 					
 					f32 lightX = s * lightUV0.X + u * lightUV1.X + v * lightUV2.X;
 					f32 lightY = s * lightUV0.Y + u * lightUV1.Y + v * lightUV2.Y;
@@ -398,14 +404,26 @@ DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_bitmap* shadowM
 						s32 textureX = Math_RoundF32ToS32(lightX * (shadowMap->Width - 1));
 						s32 textureY = Math_RoundF32ToS32((shadowMap->Height - 1) * lightY); 
 						f32 zValue = shadowMapPixels[textureY * shadowMap->Width + textureX];
+						//printf("%f\n", zValue);
 						
-						if(lightZ + 0.5f >= zValue)
+						if(lightZ + 0.009f < zValue)
 						{
-							//shadowMapPixels[textureY * shadowMap->Width + textureX] = 1;
+							//texel.RGB = {1, 1, 1};
+							texel.RGB *=  zValue;
 						}
-						
 					}
+					texel.RGB.X = Math_Clamp01(texel.RGB.X);
+					texel.RGB.Y = Math_Clamp01(texel.RGB.Y);
+					texel.RGB.Z = Math_Clamp01(texel.RGB.Z);
 					
+					u8 redChannel = Math_RoundF32ToU32(texel.R * 255.0f);
+					u8 greenChannel = Math_RoundF32ToU32(texel.G * 255.0f);
+					u8 blueChannel = Math_RoundF32ToU32(texel.B * 255.0f);
+					
+					u32 pixelColor = ((redChannel << 24) |
+									  (greenChannel << 16) |
+									  (blueChannel << 8 ) |
+									  (0));
 					
 					*colorBufferPixel = pixelColor;
 					
@@ -462,8 +480,10 @@ ComputeDepthForTriangle(render_bitmap* buffer,
 				
 				f32 z = (oneOverCameraZ0 * s + oneOverCameraZ1 * u + oneOverCameraZ2 * v);
 				
-				if(*pixel < z)
+				if(z > *pixel)
+				{
 					*pixel = z;
+				}
 			}
 			
 			++pixel;
