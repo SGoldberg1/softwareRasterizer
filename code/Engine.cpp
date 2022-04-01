@@ -56,7 +56,7 @@ WriteEngineBuffers(debug_file_write* writeFile,
 				&buffers->Color, 32,
 				0xFF000000, 0x00FF0000, 0x0000FF00);
 	
-	DepthToColor(buffers);
+	DepthToColor(&buffers->Color, &buffers->Depth);
 	WriteBitmap(writeFile, "../misc/depthBuffer.bmp",
 				&buffers->Color, 32,
 				0xFF000000, 0x00FF0000, 0x0000FF00);
@@ -78,14 +78,8 @@ WriteEngineBuffers(debug_file_write* writeFile,
 			shadowColor.Width = width;
 			shadowColor.Height = height;
 			shadowColor.Pixels = MemoryBlock_PushArray(temp, height * width, u32);
-			u32* destination = (u32*)shadowColor.Pixels;
-			f32* source = (f32*)shadowMap->Pixels;
 			
-			for(s32 i = 0; i < (width * height); ++i)
-			{
-				u32 value = Math_RoundF32(*source * 255.0f);
-				*destination++ = value << 24 | value << 16 | value << 8 | 0;
-			}
+			DepthToColor(&shadowColor, shadowMap);
 			
 			WriteBitmap(writeFile, "../misc/shadowMap.bmp",
 						&shadowColor, 32,
@@ -154,19 +148,25 @@ UpdateCamera(engine_state* state, v3 movement, v2 rotation)
 }
 
 inline void
-ConstructLightSpaceMatrix(m4x4* lightSpace,
-						  f32 xMin, f32 xMax,
-						  f32 yMin, f32 yMax, f32 zMax)
+ConstructOrthographicMatrix(m4x4* orthographic,
+							f32 nearPlane, f32 farPlane,
+							s32 screenLeft, s32 screenRight,
+							s32 screenTop, s32 screenBottom)
 {
-	f32 a =  2.0f / (xMax - xMin);
-	f32 b =  2.0f/ (yMax - yMin);
-	f32 c = -2.0f / (zMax);
+	f32 screenWidth = (screenRight - screenLeft);
+    f32 screenHeight = (screenBottom - screenTop);
 	
-	lightSpace->Row1 = { a,  0,  0,  0  };
-	lightSpace->Row2 = { 0,  b,  0,  0  };
-	lightSpace->Row3 = { 0,  0,  c, -1  };
-	lightSpace->Row4 = { 0,  0,  0,  1  };
+	//f32 windowAspectRatio = (f32)screenWidth / (f32)screenHeight;
 	
+	f32 a = 2.0f / screenWidth;
+	f32 b = -2.0f / screenHeight;
+	f32 c = 2.0f / (farPlane - nearPlane);
+	f32 d = -(farPlane * nearPlane) / (farPlane - nearPlane);
+	
+	orthographic->Row1 = { a,  0,  0,  0  };
+	orthographic->Row2 = { 0,  b,  0,  0  };
+	orthographic->Row3 = { 0,  0,  c,  d  };
+	orthographic->Row4 = { 0,  0,  0,  1  };
 }
 
 inline void
@@ -194,7 +194,6 @@ ConstructPerspectiveMatrix(m4x4* perspective,
 	perspective->Row2 = { 0,  b,  0,  0  };
 	perspective->Row3 = { 0,  0,  c,  d  };
 	perspective->Row4 = { 0,  0, -1,  0  };
-	
 }
 
 inline void
@@ -212,7 +211,6 @@ InitializeCamera(engine_state* state,
 							   fieldOfView, nearPlane, farPlane,
 							   screenLeft, screenRight,
 							   screenTop, screenBottom);
-	
 	UpdateCamera(state, position, rotation);
 }
 
@@ -249,14 +247,13 @@ ENGINE_UPDATE(EngineUpdate)
 		state->ShadowMap.Width = width;
 		state->ShadowMap.Height = height;
 		state->ShadowMap.Pixels = MemoryBlock_PushArray(&state->WorldMemory,
-														(width * height * sizeof(f32)),
-														f32);
-		ConstructLightSpaceMatrix(&state->LightProjectioneMatrix,
-								  -100, 100,
-								  -100, 100, 1000);
+														(width * height * sizeof(f32)), f32);
 		
-		InitializeCamera(state,
-						 60, 0.1f, 100.0f,
+		ConstructOrthographicMatrix(&state->LightProjectionMatrix, 0.1f, 100.0f,
+									0, 20,
+									0, 20);
+		
+		InitializeCamera(state, 60, 0.1f, 100.0f,
 						 0, buffer->Color.Width,
 						 0, buffer->Color.Height,
 						 {0, 0, 10}, {});
@@ -284,8 +281,8 @@ ENGINE_UPDATE(EngineUpdate)
 	
 	UpdateCamera(state, movement * 6 * time->Delta, rotation * 2 * time->Delta);
 	
+	ClearBitmap(&buffer->Color, {0.1f, 0.1f, 0.1f, 1});
 	ClearBitmap(&buffer->Color, {});
-	//ClearBitmap(&buffer->Color, {0.1f, 0.1f, 0.1f, 0});
 	ClearDepthBuffer(&buffer->Depth, 0.0f);
 	ClearDepthBuffer(&state->ShadowMap, 0.0f);
 	
@@ -296,61 +293,92 @@ ENGINE_UPDATE(EngineUpdate)
 	v4 color = {0.7f, 0.3f, 0.3f, 1.0f};
 	color = {1, 1, 1, 0};
 	
-	engine_mesh* mesh = &state->Sphere;
-	
 	f32 scale = 1;//(Math_Cos(elapsedTime) * 0.5f + 0.9f) * 0.5;
+	
+	engine_mesh mesh[2];
+	mesh[0] = state->Sphere;
+	mesh[1] = state->Plane;
 	
 	f32 c = Math_Cos(elapsedTime);
 	f32 s = Math_Sin(elapsedTime);
-	m4x4 worldMatrix;
-	worldMatrix.Row1 = {c * scale,  0, -s * scale,  -state->CameraPosition.X};
-	worldMatrix.Row2 = {0,  1 * scale,  0,  -state->CameraPosition.Y};
-	worldMatrix.Row3 = {s * scale,  0,  c * scale,  -state->CameraPosition.Z};
-	worldMatrix.Row4 = {0,  0,  0,  1};
+	m4x4 worldMatrix[2];
+	worldMatrix[0].Row1 = {c * scale,  0, -s * scale, 0};
+	worldMatrix[0].Row2 = {0,  1 * scale,  0,         0};
+	worldMatrix[0].Row3 = {s * scale,  0,  c * scale, 0};
+	worldMatrix[0].Row4 = {0,  0,  0,                 1};
+	
+	c = Math_Cos(elapsedTime * 0);
+	s = Math_Sin(elapsedTime * 0);
+	scale = 10;
+	worldMatrix[1].Row1 = {c * 2,  0, -s,  0};
+	worldMatrix[1].Row2 = {0,  1,  0,     -2};
+	worldMatrix[1].Row3 = {s,  0,  c * 2,  0};
+	worldMatrix[1].Row4 = {0,  0,  0,      1};
 	
 	state->BrickMaterial.SpecularIntensity = 1.0f;
 	state->BrickMaterial.SpecularShininess = 0.5f;
 	state->BrickMaterial.Color = {0.7f, 0.6f, 0.7f, 0.25f};
 	
-#if 0
-	VertexShader_ShadowMap(&state->ShadowMap, render_matrial* material,
-						   &state->Sphere, m4x4* worldMatrix, 
-						   m4x4* cameraMatrix, &state->LightProjectioneMatrix)
-#endif
-	
-	
-	
-	VertexShader_MainPass(buffer, &state->BrickMaterial, 
-						  mesh, &worldMatrix, 
-						  &state->Camera, &state->Perspective);
-	
-	
-	c = Math_Cos(elapsedTime * 0);
-	s = Math_Sin(elapsedTime * 0);
-	scale = 10;
-	mesh = &state->Plane;
-	worldMatrix.Row1 = {c * 2,  0, -s,  -state->CameraPosition.X};
-	worldMatrix.Row2 = {0,  1,  0,  -1 - state->CameraPosition.Y};
-	worldMatrix.Row3 = {s,  0,  c * 2,  -state->CameraPosition.Z};
-	worldMatrix.Row4 = {0,  0,  0,  1};
-	
 	state->TileMaterial.SpecularIntensity = 1.0f;
 	state->TileMaterial.SpecularShininess = 6.5f;
 	state->TileMaterial.Color = {0.7f, 0.7f, 0.3f, 0.0f};
 	
-	VertexShader_MainPass(buffer, &state->TileMaterial, 
-						  mesh, &worldMatrix, 
-						  &state->Camera, &state->Perspective);
+	render_matrial materials[2];
+	materials[0] = state->BrickMaterial;
+	materials[1] = state->TileMaterial;
+	
+	v3 lightPosition = V3(10, 10, 10);
+	M4x4_LookAtViewMatrix(&state->LightSpaceMatrix, lightPosition, {-1, -1, -1}, {0, 1, 0});
+	
+	for(s32 i = 0; i < ArrayLength(worldMatrix); ++i)
+	{
+		worldMatrix[i].Row1.W -= state->CameraPosition.X;
+		worldMatrix[i].Row2.W -= state->CameraPosition.Y;
+		worldMatrix[i].Row3.W -= state->CameraPosition.Z;
+		
+		VertexShader_ShadowMap(&state->ShadowMap, mesh + i, 
+							   worldMatrix + i, 
+							   &state->LightSpaceMatrix, 
+							   &state->LightProjectionMatrix);
+		
+		VertexShader_DepthMap(&buffer->Depth, mesh + i, worldMatrix + i, 
+							  &state->Camera, &state->Perspective);
+		
+	}
+	for(s32 i = 0; i < ArrayLength(mesh); ++i)
+	{
+		
+		VertexShader_MainPass(buffer, &state->ShadowMap, materials + i, 
+							  mesh + i, worldMatrix + i,
+							  &state->LightProjectionMatrix, &state->LightSpaceMatrix,
+							  &state->Camera, &state->Perspective);
+	}
 	
 	
-#if 0	 
-	DrawBitmap(&buffer->Color, &state->BrickMaterial.Diffuse, 
-			   {buffer->Color.Width - 65.0f, 0}, {64, 64});
+#if 1
+	render_bitmap colorShadowMap;
+	colorShadowMap.Width = state->ShadowMap.Width;
+	colorShadowMap.Height = state->ShadowMap.Height;
+	colorShadowMap.Pixels = MemoryBlock_PushArray(&state->WorldMemory,
+												  colorShadowMap.Width * colorShadowMap.Height,
+												  u32);
+	
+	DepthToColor(&colorShadowMap, &state->ShadowMap);
+	
+	f32 w = 256;
+	f32 h = 256;
+	
+	DrawBitmap(&buffer->Color, &colorShadowMap, 
+			   {buffer->Color.Width - w - 1, 0}, {w, h});
+	MemoryBlock_PopArray(&state->WorldMemory, 
+						 colorShadowMap.Width * colorShadowMap.Height,
+						 u32);
+	
 #endif
 	
 	if(0)
 	{
-		DepthToColor(buffer);
+		DepthToColor(&buffer->Color, &buffer->Depth);
 	}
 	
 #if 1

@@ -8,6 +8,7 @@
 
 #define OneOver255 (1.0f / 255.0f);
 #define PI (3.1415926535897932384626433832795028841971693993751)
+#define OneOverPI (1.0f / PI)
 #define DegreesToRadians(degrees) (degrees) * (PI / 180.0f)
 #define SqrtOf2 (1.414213562)
 

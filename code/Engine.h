@@ -68,7 +68,7 @@ struct engine_state
 	render_matrial TileMaterial;
 	
 	render_bitmap ShadowMap;
-	m4x4 LightProjectioneMatrix;
+	m4x4 LightProjectionMatrix;
 	m4x4 LightSpaceMatrix;
 	
 	
