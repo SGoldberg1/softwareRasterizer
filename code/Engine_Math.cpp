@@ -343,17 +343,20 @@ Math_MultiplyM4x4(m4x4* a, m4x4* b)
 	
 	return(result);
 }
+
 inline void
 M4x4_LookAtViewMatrix(m4x4* result, v3 position, v3 target, v3 worldUp)
 {
-    v3 forward = Math_NormalizedV3(target - position);
-    v3 right = Math_CrossProductV3(forward, Math_NormalizedV3(worldUp));
-    v3 up = Math_CrossProductV3(right, forward);
+    v3 forward = Math_NormalizedV3(position - target);
+    v3 right = Math_CrossProductV3(Math_NormalizedV3(worldUp), forward);
+    v3 up = Math_CrossProductV3(forward, right);
 	result->Row1 = V4(right,   -Math_DotProductV3(right, position));
     result->Row2 = V4(up,      -Math_DotProductV3(up, position));
     result->Row3 = V4(forward, -Math_DotProductV3(forward, position));
 	result->Row4 = V4(0, 0, 0, 1);
+	printf("%f\n", forward.Z);
 }
+
 //////////////////////////////// Intersection
 
 inline b32

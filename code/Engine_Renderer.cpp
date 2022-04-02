@@ -154,6 +154,8 @@ DrawRectangle(render_bitmap* buffer,
 	}
 }
 
+global_variable v3 cameraPosition = {};
+
 v3
 ComputeLightByDirection(v3 lightDirection, v3 fragPosition, v3 normal,
 						v3 lightColor, render_matrial* material, v2 uv)
@@ -167,14 +169,16 @@ ComputeLightByDirection(v3 lightDirection, v3 fragPosition, v3 normal,
 	
 	if(diffuseFactor > 0.0f)
 	{
-		v3 halfwayDirection = Math_NormalizedV3(lightDirection - fragPosition);
+		v3 fragToEye = cameraPosition - fragPosition;
+		v3 halfwayDirection = Math_NormalizedV3(lightDirection + fragToEye);
 		f32 specularFactor = Math_DotProductV3(halfwayDirection, normal);
-		//v3 reflect = Math_ReflectV3(lightDirection, fragNormal);
-		//specularFactor = Math_DotProductV3(reflect, -fragPosition);
+		
+		//v3 reflect = Math_ReflectV3(lightDirection, normal);
+		//specularFactor = Math_DotProductV3(reflect, cameraPosition - fragPosition);
 		
 		if(specularFactor > 0.0f)
 		{
-			specularFactor = Math_Pow(Math_Clamp01(specularFactor), material->SpecularShininess);
+			specularFactor = Math_Pow(specularFactor, material->SpecularShininess);
 			specularColor =
 				lightColor * Math_MaxF32(specularFactor * material->SpecularIntensity, 0);
 			//Apply Specular Texture
@@ -208,10 +212,12 @@ struct render_fragment
 	v3 Tangent;
 };
 
+
+
 internal_function void
 DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_bitmap* shadowMap,
 			 render_matrial* material,
-			 v3 lightUV0, v3 lightUV1, v3 lightUV2,
+			 v4 shadowMapCoord0, v4 shadowMapCoord1, v4 shadowMapCoord2,
 			 v2 screen0, v2 screen1, v2 screen2, v2 uv0, v2 uv1, v2 uv2,
 			 f32 z0, f32 z1, f32 z2, 
 			 v3 fragPosition0, v3 fragPosition1, v3 fragPosition2, 
@@ -224,6 +230,7 @@ DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_bitmap* shadowM
 	f32 lightIntensityDirection = 1.0f;
 	v3 lightColor = V3(0.957f, 0.914f, 0.608f) * lightIntensityDirection;
 	lightColor = V3(0, 1, 0) * lightIntensityDirection;
+	lightColor = V3(1, 1, 1) * lightIntensityDirection;
 	
 #if 1
 	v3 lightDirection2 = -Math_NormalizedV3({1, 0, 1});
@@ -283,6 +290,10 @@ DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_bitmap* shadowM
 	uv0 *= oneOverCameraZ0;
 	uv1 *= oneOverCameraZ1;
 	uv2 *= oneOverCameraZ2;
+	
+	shadowMapCoord0 *= oneOverCameraZ0;
+	shadowMapCoord1 *= oneOverCameraZ1;
+	shadowMapCoord2 *= oneOverCameraZ2;
 	
 	for(s32 y = top; y <= bottom; ++y)
 	{
@@ -393,18 +404,23 @@ DrawTriangle(render_bitmap* buffer, render_bitmap* depth, render_bitmap* shadowM
 					//Compute Final Pixel Color
 					texel.RGB = Math_HadamardProduct(texel.RGB * OneOverPI, finalLightColor);
 					
-					f32 lightX = s * lightUV0.X + u * lightUV1.X + v * lightUV2.X;
-					f32 lightY = s * lightUV0.Y + u * lightUV1.Y + v * lightUV2.Y;
-					f32 lightZ = s * lightUV0.Z + u * lightUV1.Z + v * lightUV2.Z;
+					
+					f32 lightX = s * shadowMapCoord0.X + u * shadowMapCoord1.X + v * shadowMapCoord2.X;
+					f32 lightY = s * shadowMapCoord0.Y + u * shadowMapCoord1.Y + v * shadowMapCoord2.Y;
+					f32 lightZ = s * shadowMapCoord0.Z + u * shadowMapCoord1.Z + v * shadowMapCoord2.Z;
 					
 					if(Math_IsClampedF32(lightX, 0.0f, 1.0f) && 
 					   Math_IsClampedF32(lightY, 0.0f, 1.0f))
 					{
+						
+						lightX *= 1.0f / z;
+						lightY *= 1.0f / z;
+						lightZ *= 1.0f / z;
+						
 						//Get texture sample from diffuse
 						s32 textureX = Math_RoundF32ToS32(lightX * (shadowMap->Width - 1));
 						s32 textureY = Math_RoundF32ToS32((shadowMap->Height - 1) * lightY); 
 						f32 zValue = shadowMapPixels[textureY * shadowMap->Width + textureX];
-						//printf("%f\n", zValue);
 						
 						if(lightZ + 0.009f < zValue)
 						{

@@ -143,6 +143,12 @@ union v3
 	};
 	struct
 	{
+		f32 R;
+		f32 G;
+		f32 B;
+	};
+	struct
+	{
 		f32 Width;
 		f32 Height;
 		f32 Depth;
@@ -354,6 +360,13 @@ operator*(v4 a, f32 scalar)
 	result.Z = a.Z * scalar;
 	result.W = a.W * scalar;
 	return(result);
+}
+
+inline v4&
+operator*=(v4 &a, f32 scalar)
+{
+	a = a * scalar;
+	return(a);
 }
 
 union m4x4

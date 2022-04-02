@@ -160,7 +160,7 @@ ConstructOrthographicMatrix(m4x4* orthographic,
 	
 	f32 a = 2.0f / screenWidth;
 	f32 b = -2.0f / screenHeight;
-	f32 c =  -2.0f / (farPlane - nearPlane);
+	f32 c =  2.0f / (farPlane - nearPlane);
 	f32 d = -(farPlane * nearPlane) / (farPlane - nearPlane);
 	
 	orthographic->Row1 = { a,  0,  0,  0  };
@@ -315,10 +315,10 @@ ENGINE_UPDATE(EngineUpdate)
 	mesh[0] = state->Sphere;
 	mesh[1] = state->Plane;
 	
-	f32 c = Math_Cos(elapsedTime);
-	f32 s = Math_Sin(elapsedTime);
+	f32 c = Math_Cos(elapsedTime * 0);
+	f32 s = Math_Sin(elapsedTime * 0);
 	m4x4 worldMatrix[2];
-	worldMatrix[0].Row1 = {c * 0.75f,  0, -s * 0.75f, 0};
+	worldMatrix[0].Row1 = {c * 0.75f,  0, -s * 0.75f,  Math_Cos(elapsedTime * 1)};
 	worldMatrix[0].Row2 = {0,  1 * 0.75f,  0, 0};
 	worldMatrix[0].Row3 = {s * 0.75f,  0,  c * 0.75f, 0};
 	worldMatrix[0].Row4 = {0,  0,  0, 1};
@@ -331,20 +331,30 @@ ENGINE_UPDATE(EngineUpdate)
 	worldMatrix[1].Row3 = {s,  0,  c * 3,  0};
 	worldMatrix[1].Row4 = {0,  0,  0,      1};
 	
-	state->BrickMaterial.SpecularIntensity = 1.0f;
+	state->BrickMaterial.SpecularIntensity = 0.1f;
 	state->BrickMaterial.SpecularShininess = 0.5f;
 	state->BrickMaterial.Color = {0.7f, 0.6f, 0.7f, 0.25f};
 	
-	state->TileMaterial.SpecularIntensity = 1.0f;
-	state->TileMaterial.SpecularShininess = 6.5f;
+	state->TileMaterial.SpecularIntensity = 2.0f;
+	state->TileMaterial.SpecularShininess = 100.5f;
 	state->TileMaterial.Color = {0.7f, 0.7f, 0.3f, 0.0f};
 	
 	render_matrial materials[2];
 	materials[0] = state->BrickMaterial;
 	materials[1] = state->TileMaterial;
 	
-	v3 lightPosition = V3(10, 10, 10);
+	cameraPosition = state->CameraPosition;
+	
+	
+	
+	ConstructOrthographicMatrix(&state->LightProjectionMatrix, 0.1f, 100.0f,
+								0, 20,
+								0, 20);
+	
+	v3 lightPosition = V3(4, 4, 4);
 	M4x4_LookAtViewMatrix(&state->LightSpaceMatrix, lightPosition, {-1, -1, -1}, {0, 1, 0});
+	lightPosition = {0, 10, 0};
+	//M4x4_LookAtViewMatrix(&state->LightSpaceMatrix, lightPosition, {0, -1, 0}, {0, 1, 0});
 	
 	for(s32 i = 0; i < ArrayLength(worldMatrix); ++i)
 	{
@@ -355,16 +365,23 @@ ENGINE_UPDATE(EngineUpdate)
 		
 		VertexShader_DepthMap(&buffer->Depth, mesh + i, worldMatrix + i, 
 							  &state->Camera, &state->Perspective);
+		
 	}
 	
 	for(s32 i = 0; i < ArrayLength(mesh); ++i)
 	{
 		VertexShader_MainPass(buffer, &state->ShadowMap, materials + i, 
 							  mesh + i, worldMatrix + i,
-							  &state->LightProjectionMatrix, &state->LightSpaceMatrix,
+							  &state->LightProjectionMatrix, 
+							  &state->LightSpaceMatrix,
 							  &state->Camera, &state->Perspective);
 	}
 	
+	
+	if(0)
+	{
+		DepthToColor(&buffer->Color, &buffer->Depth);
+	}
 	
 #if 1
 	render_bitmap colorShadowMap;
@@ -386,11 +403,6 @@ ENGINE_UPDATE(EngineUpdate)
 						 u32);
 	
 #endif
-	
-	if(0)
-	{
-		DepthToColor(&buffer->Color, &buffer->Depth);
-	}
 	
 #if 1
 	local_persist f32 t = 0;
