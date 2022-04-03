@@ -17,8 +17,8 @@ fi
 #echo SOURCE = $SOURCE
 #echo CODE_HOME = $CODE_HOME
 
-clang++ $debugFlags $commonFlags $CODE_HOME/assetProcessor/AssetProcessor_Main.cpp -o $CODE_HOME/assetProcessor/assetProcessor
-"$CODE_HOME/assetProcessor/assetProcessor" "$CODE_HOME"
+#clang++ $debugFlags $commonFlags $CODE_HOME/assetProcessor/AssetProcessor_Main.cpp -o $CODE_HOME/assetProcessor/assetProcessor
+#"$CODE_HOME/assetProcessor/assetProcessor" "$CODE_HOME"
 
 clang++ $debugFlags $commonFlags $engineFlags $CODE_HOME/Engine.cpp -o ../build/engine.so
 

@@ -338,9 +338,13 @@ V4(f32 x, f32 y, f32 z, f32 w)
 }
 
 inline v4
-operator+(v4 &a, v4 b)
+operator+(v4 a, v4 b)
 {
-	v4 result = {a.X + b.X, a.Y + b.Y, a.Z + b.Z, a.W + b.W};
+	v4 result;
+	result.X = a.X + b.X;
+	result.Y = a.Y + b.Y;
+	result.Z = a.Z + b.Z;
+	result.W = a.W + b.W;
 	return(result);
 }
 
@@ -359,6 +363,13 @@ operator*(v4 a, f32 scalar)
 	result.Y = a.Y * scalar;
 	result.Z = a.Z * scalar;
 	result.W = a.W * scalar;
+	return(result);
+}
+
+inline v4
+operator*(f32 scalar, v4 a)
+{
+	v4 result = a * scalar;
 	return(result);
 }
 

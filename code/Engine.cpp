@@ -11,6 +11,7 @@
 #include "Engine_Memory.cpp"
 #include "Engine_Math.cpp"
 #include "Engine_Renderer.cpp"
+#include "Engine_FragmentShader.cpp"
 #include "Engine_VertexShader.cpp"
 
 void
@@ -160,8 +161,8 @@ ConstructOrthographicMatrix(m4x4* orthographic,
 	
 	f32 a = 2.0f / screenWidth;
 	f32 b = -2.0f / screenHeight;
-	f32 c =  2.0f / (farPlane - nearPlane);
-	f32 d = -(farPlane * nearPlane) / (farPlane - nearPlane);
+	f32 c =  -farPlane / (farPlane - nearPlane);
+	f32 d =  (-farPlane * nearPlane) / (farPlane - nearPlane);
 	
 	orthographic->Row1 = { a,  0,  0,  0  };
 	orthographic->Row2 = { 0,  b,  0,  0  };
@@ -221,10 +222,6 @@ InitializeCamera(engine_state* state,
 				 s32 screenTop, s32 screenBottom,
 				 v3 position, v2 rotation)
 {
-	state->FieldOfView = fieldOfView;
-	state->NearPlane = nearPlane;
-	state->FarPlane = farPlane;
-	
 	ConstructPerspectiveMatrix(&state->Perspective,
 							   fieldOfView, nearPlane, farPlane,
 							   screenLeft, screenRight,
@@ -260,6 +257,8 @@ ENGINE_UPDATE(EngineUpdate)
 		state->Sphere = LoadMesh(debug->ReadFile, "./assets/models/sphere.sr");
 		state->Cube = LoadMesh(debug->ReadFile, "./assets/models/cube.sr");
 		
+		FragmentGroup_Initialize(&state->FragmentGroup, memory->TransientSize, memory->Transient);
+		
 		s32 width = 1024;
 		s32 height = 1024;
 		state->ShadowMap.Width = width;
@@ -267,7 +266,7 @@ ENGINE_UPDATE(EngineUpdate)
 		state->ShadowMap.Pixels = MemoryBlock_PushArray(&state->WorldMemory,
 														(width * height * sizeof(f32)), f32);
 		
-		ConstructOrthographicMatrix(&state->LightProjectionMatrix, 0.1f, 100.0f,
+		ConstructOrthographicMatrix(&state->ShadowMapProjection, 0.1f, 100.0f,
 									0, 20,
 									0, 20);
 		
@@ -318,9 +317,9 @@ ENGINE_UPDATE(EngineUpdate)
 	f32 c = Math_Cos(elapsedTime * 0);
 	f32 s = Math_Sin(elapsedTime * 0);
 	m4x4 worldMatrix[2];
-	worldMatrix[0].Row1 = {c * 0.75f,  0, -s * 0.75f,  Math_Cos(elapsedTime * 1)};
+	worldMatrix[0].Row1 = {c * 0.75f,  0, -s * 0.75f,  1};
 	worldMatrix[0].Row2 = {0,  1 * 0.75f,  0, 0};
-	worldMatrix[0].Row3 = {s * 0.75f,  0,  c * 0.75f, 0};
+	worldMatrix[0].Row3 = {s * 0.75f,  0,  c * 0.75f, 1};
 	worldMatrix[0].Row4 = {0,  0,  0, 1};
 	
 	c = Math_Cos(elapsedTime * 0);
@@ -345,36 +344,49 @@ ENGINE_UPDATE(EngineUpdate)
 	
 	cameraPosition = state->CameraPosition;
 	
+#if 1
+	ConstructOrthographicMatrix(&state->ShadowMapProjection, 0.1f, 100.0f, 0, 10, 0, 10);
+#else
+	ConstructPerspectiveMatrix(&state->ShadowMapProjection, 60, 0.1f, 100.0f, 0, 20,
+							   0, 20);
+#endif
 	
+	v3 lightPosition = V3(10, 10, 10);
+	M4x4_LookAtViewMatrix(&state->ShadowMapMatrix, lightPosition, {}, {0, 1, 0});
 	
-	ConstructOrthographicMatrix(&state->LightProjectionMatrix, 0.1f, 100.0f,
-								0, 20,
-								0, 20);
+	m4x4 viewProjection = Math_MultiplyM4x4(&state->Perspective, &state->Camera);
+	m4x4 shadowVP = Math_MultiplyM4x4(&state->ShadowMapProjection, &state->ShadowMapMatrix);
 	
-	v3 lightPosition = V3(4, 4, 4);
-	M4x4_LookAtViewMatrix(&state->LightSpaceMatrix, lightPosition, {-1, -1, -1}, {0, 1, 0});
-	lightPosition = {0, 10, 0};
-	//M4x4_LookAtViewMatrix(&state->LightSpaceMatrix, lightPosition, {0, -1, 0}, {0, 1, 0});
-	
-	for(s32 i = 0; i < ArrayLength(worldMatrix); ++i)
+	for(s32 i = 0; i < ArrayLength(mesh); ++i)
 	{
-		VertexShader_DepthMap(&state->ShadowMap, mesh + i, 
-							  worldMatrix + i, 
-							  &state->LightSpaceMatrix, 
-							  &state->LightProjectionMatrix);
 		
-		VertexShader_DepthMap(&buffer->Depth, mesh + i, worldMatrix + i, 
-							  &state->Camera, &state->Perspective);
+		m4x4 mvpMatrix = Math_MultiplyM4x4(&shadowVP, worldMatrix + i);
+		VertexShader_DepthMap(&state->ShadowMap, mesh + i, &mvpMatrix);
+		
+		mvpMatrix = Math_MultiplyM4x4(&viewProjection, worldMatrix + i);
+		VertexShader_DepthMap(&buffer->Depth, mesh + i, &mvpMatrix);
 		
 	}
 	
 	for(s32 i = 0; i < ArrayLength(mesh); ++i)
 	{
-		VertexShader_MainPass(buffer, &state->ShadowMap, materials + i, 
-							  mesh + i, worldMatrix + i,
-							  &state->LightProjectionMatrix, 
-							  &state->LightSpaceMatrix,
-							  &state->Camera, &state->Perspective);
+		m4x4 mvpMatrix = Math_MultiplyM4x4(&viewProjection, worldMatrix + i);
+		m4x4 shadowMVP = Math_MultiplyM4x4(&shadowVP, worldMatrix + i);
+		
+		VertexShader_MainPass(&state->FragmentGroup,  mesh + i, 
+							  worldMatrix + i, &mvpMatrix, &shadowMVP);
+		
+		for(s32 j = 0; j < state->FragmentGroup.Count; j += 3)
+		{
+			render_fragment* fragments = state->FragmentGroup.Base + j;
+			
+			FragmentShader_MainPass(buffer, &state->ShadowMap,
+									materials + i, 
+									fragments + 0, fragments + 1, fragments + 2);
+			
+		}
+		
+		FragmentGroup_Reset(&state->FragmentGroup);
 	}
 	
 	
@@ -383,7 +395,7 @@ ENGINE_UPDATE(EngineUpdate)
 		DepthToColor(&buffer->Color, &buffer->Depth);
 	}
 	
-#if 1
+#if 0
 	render_bitmap colorShadowMap;
 	colorShadowMap.Width = state->ShadowMap.Width;
 	colorShadowMap.Height = state->ShadowMap.Height;

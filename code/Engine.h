@@ -51,10 +51,8 @@ struct engine_mesh
 struct engine_state
 {
 	memory_block WorldMemory;
+	fragment_group FragmentGroup;
 	
-	f32 FieldOfView;
-	f32 FarPlane;
-	f32 NearPlane;
 	m4x4 Perspective;
 	v2 CameraRotation;
 	v3 CameraPosition;
@@ -68,9 +66,8 @@ struct engine_state
 	render_matrial TileMaterial;
 	
 	render_bitmap ShadowMap;
-	m4x4 LightProjectionMatrix;
-	m4x4 LightSpaceMatrix;
-	
+	m4x4 ShadowMapProjection;
+	m4x4 ShadowMapMatrix;
 	
 	render_bitmap BrickDiffuse;
 	render_bitmap BrickSpecular;

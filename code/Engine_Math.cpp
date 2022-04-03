@@ -354,7 +354,6 @@ M4x4_LookAtViewMatrix(m4x4* result, v3 position, v3 target, v3 worldUp)
     result->Row2 = V4(up,      -Math_DotProductV3(up, position));
     result->Row3 = V4(forward, -Math_DotProductV3(forward, position));
 	result->Row4 = V4(0, 0, 0, 1);
-	printf("%f\n", forward.Z);
 }
 
 //////////////////////////////// Intersection

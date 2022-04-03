@@ -1,94 +1,33 @@
 
-
 void
-VertexShader_MainPass(engine_buffer* buffer, render_bitmap* shadowMap, render_matrial* material,
-					  engine_mesh* mesh, m4x4* worldMatrix, 
-					  m4x4*lightProjection, m4x4* lightMatrix, m4x4* cameraMatrix, m4x4* projectionMatrix)
+VertexShader_MainPass(fragment_group* group,  engine_mesh* mesh, 
+					  m4x4* worldMatrix, m4x4* mvpMatrix, m4x4* shadowMVP)
 {
-	m4x4 viewMatrix = Math_MultiplyM4x4(cameraMatrix, worldMatrix);
-	m4x4 clipMatrix = Math_MultiplyM4x4(projectionMatrix, &viewMatrix); 
-	
-	m4x4 lightView = Math_MultiplyM4x4(lightMatrix, worldMatrix);
-	m4x4 lightClipMatrix = Math_MultiplyM4x4(lightProjection, &lightView);
-	
 	for(s32 index = 0; index < mesh->VertexCount; index += 3)
 	{
-		vertex_attribute* attributes[3];
-		attributes[0] = mesh->Attributes + index + 0;
-		attributes[1] = mesh->Attributes + index + 1;
-		attributes[2] = mesh->Attributes + index + 2;
 		
-		v4 clip0 = Math_MultiplyM4x4(&clipMatrix, attributes[0]->Vertex);
-		v4 clip1 = Math_MultiplyM4x4(&clipMatrix, attributes[1]->Vertex);
-		v4 clip2 = Math_MultiplyM4x4(&clipMatrix, attributes[2]->Vertex);
-		
-		v3 worldPosition[3];
-		worldPosition[0] = Math_MultiplyM4x4(worldMatrix, attributes[0]->Vertex).XYZ;
-		worldPosition[1] = Math_MultiplyM4x4(worldMatrix, attributes[1]->Vertex).XYZ;
-		worldPosition[2] = Math_MultiplyM4x4(worldMatrix, attributes[2]->Vertex).XYZ;
-		
-		clip0.XYZ *= 1.0f / clip0.W;
-		clip1.XYZ *= 1.0f / clip1.W;
-		clip2.XYZ *= 1.0f / clip2.W;
-		
-		worldPosition[0] = clip0.XYZ;
-		worldPosition[1] = clip1.XYZ;
-		worldPosition[2] = clip2.XYZ;
-		
-		if(Math_SignedAreaOfTriangle(clip0.XY, clip1.XY, clip2.XY) >= 0.0f)
+		render_fragment* fragments = FragmentGroup_PushFragment(group, 3);
+		for(s32 i = 0; i < 3; ++i)
 		{
+			vertex_attribute* attribute = mesh->Attributes + index + i;
 			
+			fragments[i].Position = Math_MultiplyM4x4(mvpMatrix, attribute->Vertex);
 			
-			clip0.X = (clip0.X) * buffer->Color.Width;
-			clip0.Y = (clip0.Y) * buffer->Color.Height;
+			v3 normal = Math_MultiplyM4x4(worldMatrix, attribute->Normal, 0).XYZ;
+			fragments[i].Normal = normal;
+			fragments[i].UV = attribute->UV;
 			
-			clip1.X = (clip1.X) * buffer->Color.Width;
-			clip1.Y = (clip1.Y) * buffer->Color.Height;
-			
-			clip2.X = (clip2.X) * buffer->Color.Width;
-			clip2.Y = (clip2.Y) * buffer->Color.Height;
-			
-			f32 w0 = clip0.Z / clip0.W;
-			f32 w1 = clip1.Z / clip1.W;
-			f32 w2 = clip2.Z / clip2.W;
-			
-			v3 normals[3];
-			normals[0] = Math_MultiplyM4x4(worldMatrix, attributes[0]->Normal, 0).XYZ;
-			normals[1] = Math_MultiplyM4x4(worldMatrix, attributes[1]->Normal, 0).XYZ;
-			normals[2] = Math_MultiplyM4x4(worldMatrix, attributes[2]->Normal, 0).XYZ;
-			
-			v4 tangent[3];
-			v3 bitangent[3];
-			for(s32 i = 0; i < ArrayLength(tangent); ++i)
-			{
-				tangent[i] = mesh->Tangents[index + i];
-				tangent[i] = Math_MultiplyM4x4(worldMatrix, tangent[i].XYZ, 0);
-				bitangent[i] = Math_CrossProductV3(normals[i], tangent[i].XYZ) * tangent[i].W;
-			}
-			
-			v4 lightClip0 = Math_MultiplyM4x4(&lightClipMatrix, attributes[0]->Vertex);
-			v4 lightClip1 = Math_MultiplyM4x4(&lightClipMatrix, attributes[1]->Vertex);
-			v4 lightClip2 = Math_MultiplyM4x4(&lightClipMatrix, attributes[2]->Vertex);
-			
-			DrawTriangle(&buffer->Color, &buffer->Depth, shadowMap, material,
-						 lightClip0, lightClip1, lightClip2,
-						 clip0.XY, clip1.XY, clip2.XY,
-						 attributes[0]->UV, attributes[1]->UV, attributes[2]->UV,
-						 w0, w1, w2,
-						 worldPosition[0], worldPosition[1], worldPosition[2],
-						 normals[0], normals[1], normals[2],
-						 tangent[0].XYZ, tangent[1].XYZ, tangent[2].XYZ, 
-						 bitangent[0], bitangent[1], bitangent[2]);
+			v4 tangent = mesh->Tangents[index + i];
+			fragments[i].Tangent = Math_MultiplyM4x4(worldMatrix, tangent.XYZ, 0).XYZ;
+			fragments[i].Bitangent = Math_CrossProductV3(normal, tangent.XYZ) * tangent.W;
+			fragments[i].ShadowMapCoord = Math_MultiplyM4x4(shadowMVP, attribute->Vertex);
 		}
 	}
 }
 
 void
-VertexShader_DepthMap(render_bitmap* depthMap, engine_mesh* mesh, m4x4* worldMatrix, 
-					  m4x4* cameraMatrix, m4x4* projectionMatrix)
+VertexShader_DepthMap(render_bitmap* depthMap, engine_mesh* mesh, m4x4* mvp)
 {
-	m4x4 viewMatrix = Math_MultiplyM4x4(cameraMatrix, worldMatrix);
-	m4x4 clipMatrix = Math_MultiplyM4x4(projectionMatrix, &viewMatrix); 
 	
 	for(s32 index = 0; index < mesh->VertexCount; index += 3)
 	{
@@ -97,32 +36,10 @@ VertexShader_DepthMap(render_bitmap* depthMap, engine_mesh* mesh, m4x4* worldMat
 		attributes[1] = mesh->Attributes + index + 1;
 		attributes[2] = mesh->Attributes + index + 2;
 		
-		v4 clip0 = Math_MultiplyM4x4(&clipMatrix, attributes[0]->Vertex);
-		v4 clip1 = Math_MultiplyM4x4(&clipMatrix, attributes[1]->Vertex);
-		v4 clip2 = Math_MultiplyM4x4(&clipMatrix, attributes[2]->Vertex);
+		v4 position0 = Math_MultiplyM4x4(mvp, attributes[0]->Vertex);
+		v4 position1 = Math_MultiplyM4x4(mvp, attributes[1]->Vertex);
+		v4 position2 = Math_MultiplyM4x4(mvp, attributes[2]->Vertex);
 		
-		clip0.XYZ *= 1.0f / clip0.W;
-		clip1.XYZ *= 1.0f / clip1.W;
-		clip2.XYZ *= 1.0f / clip2.W;
-		
-		if(Math_SignedAreaOfTriangle(clip0.XY, clip1.XY, clip2.XY) >= 0.0f)
-		{
-			
-			clip0.X = (clip0.X) * depthMap->Width;
-			clip0.Y = (clip0.Y) * depthMap->Height;
-			
-			clip1.X = (clip1.X) * depthMap->Width;
-			clip1.Y = (clip1.Y) * depthMap->Height;
-			
-			clip2.X = (clip2.X) * depthMap->Width;
-			clip2.Y = (clip2.Y) * depthMap->Height;
-			
-			f32 oneOverCameraZ0 = clip0.Z / clip0.W;
-			f32 oneOverCameraZ1 = clip1.Z / clip1.W;
-			f32 oneOverCameraZ2 = clip2.Z / clip2.W;
-			//printf("%f\n", oneOverCameraZ2);
-			ComputeDepthForTriangle(depthMap, clip0.XY, clip1.XY, clip2.XY,
-									oneOverCameraZ0, oneOverCameraZ1, oneOverCameraZ2);
-		}
+		FragmentShader_ComputeDepth(depthMap, position0, position1, position2);
 	}
 }
