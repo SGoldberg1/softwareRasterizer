@@ -21,6 +21,8 @@ typedef int32_t b32;
 typedef float  f32;
 typedef double f64;
 
+typedef size_t memory_index;
+
 typedef uintptr_t u32ptr;
 
 struct loadable_bitmap
@@ -34,7 +36,6 @@ struct loadable_mesh
 	s32 VertexCount;
 	// NOTE(Stephen): Vertex offset is right after the loadable mesh
 	//s32 VertexOffset;
-	s32 TangentOffset;
 };
 
 #define TRUE  (1)

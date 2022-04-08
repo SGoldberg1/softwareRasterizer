@@ -8,7 +8,80 @@
 #include "AssetProcessor_Common.h"
 #include "AssetProcessor_Main.h"
 
-#include "../Engine_Math.cpp"
+#include "math.h"
+
+inline f32 
+Math_DotProductV3(v3 a, v3 b)
+{
+	f32 result = (a.X * b.X + a.Y * b.Y + a.Z * b.Z);
+	return(result);
+}
+
+inline v3
+Math_CrossProductV3(v3 a, v3 b)
+{
+	v3 result;
+	result.X = (a.Y * b.Z) - (a.Z * b.Y);
+	result.Y = (a.Z * b.X) - (a.X * b.Z);
+	result.Z = (a.X * b.Y) - (a.Y * b.X);
+	return(result);
+}
+
+inline f32
+Math_Sqrt(f32 value)
+{
+	f32 result = sqrtf(value);
+	return(result);
+}
+
+inline f32 
+Math_SquaredMagnitudeV2(v2 a)
+{
+	f32 result = (a.X * a.X + a.Y * a.Y);
+	return(result);
+}
+
+inline f32
+Math_MagnitudeV2(v2 a)
+{
+	f32 result = Math_Sqrt(Math_SquaredMagnitudeV2(a));
+	return(result);
+}
+
+inline f32 
+Math_SquaredMagnitudeV3(v3 a)
+{
+	f32 result = (a.X * a.X + a.Y * a.Y + a.Z * a.Z);
+	return(result);
+}
+
+inline f32
+Math_MagnitudeV3(v3 a)
+{
+	f32 result = Math_Sqrt(Math_SquaredMagnitudeV3(a));
+	return(result);
+}
+
+
+inline v3
+Math_NormalizedV3(v3 a, f32 magnitude)
+{
+	Assert(magnitude != 0.0f);
+	v3 result;
+	result.X = a.X / magnitude;
+	result.Y = a.Y / magnitude;
+	result.Z = a.Z / magnitude;
+	return(result);
+}
+
+inline v3
+Math_NormalizedV3(v3 a)
+{
+	v3 result = Math_NormalizedV3(a, Math_MagnitudeV3(a));
+	return(result);
+}
+
+
 #include "../Engine_Memory.cpp"
 #include "AssetProcessor_Mesh.cpp"
 

@@ -71,7 +71,6 @@ DrawLine2D(render_bitmap* buffer, v2 start, v2 end, v4 color)
 	
 	for(s32 i = 0; i <= steps; ++i)
 	{
-		
 #if 0
 		if(Math_IsClampedF32(x0, 0, buffer->Width) == FALSE ||
 		   Math_IsClampedF32(y0, 0, buffer->Height) == FALSE)

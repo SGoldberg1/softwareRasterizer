@@ -5,6 +5,41 @@
 
 #include "Engine_Types.h"
 
+struct debug_entry
+{
+	const char* Name;
+	u64 Cycles;
+	u64 CalledCount;
+};
+
+struct debug_table
+{
+	debug_entry Entry[256];
+};
+global_variable debug_table GlobalDebugTable = {};
+
+#define TIMED_SCOPE(name) timer_cycles name##__LINE__(__func__, __COUNTER__)
+
+struct timer_cycles
+{
+    s32 ID;
+    const char* FunctionName;
+    u64 StartCycles;
+    timer_cycles(const char* functionName, s32 id)
+    {
+        ID = id;
+        FunctionName = functionName;
+		GlobalDebugTable.Entry[ID].Name = functionName;
+        StartCycles = __rdtsc();
+    }
+    ~timer_cycles(void)
+    {
+        unsigned long int ellapsedCycles = __rdtsc() - StartCycles;
+		GlobalDebugTable.Entry[ID].Cycles += ellapsedCycles;
+		++GlobalDebugTable.Entry[ID].CalledCount;
+	}
+};
+
 struct debug_file
 {
 	b32 IsValid;

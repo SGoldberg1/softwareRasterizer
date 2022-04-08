@@ -3,55 +3,16 @@
 #ifndef _ENGINE_H
 #define _ENGINE_H
 
-
-#pragma pack(push, 1)
-struct bitmap_header
+struct engine_mesh_m128
 {
-    s16 ID;
-    s32 FileSize;
-    s16 Reserved1;
-    s16 Reserved2;
-    s32 PixelOffset;
-    s32 HeaderSize;
-    s32 Width;
-    s32 Height;
-    s16 Planes;
-    s16 BitsPerPixel;
-    s32 Compression;
-    s32 ImageSize;
-    s32 PixelPerMeterX;
-    s32 PixelPerMeterY;
-    s32 ColorPalette;
-    s32 ImportantColors;
-	
-	u32 RedMask;
-    u32 GreenMask;
-    u32 BlueMask;
-};
-#pragma pack(pop)
-
-union vertex_attribute
-{
-	f32 E[8];
-	struct
-	{
-		v3 Vertex;
-		v3 Normal;
-		v2 UV;
-	};
-};
-
-struct engine_mesh
-{
-	s32 VertexCount;
-	v4* Tangents;
-	vertex_attribute* Attributes;
+	s32 M128Count; // NOTE(Stephen): Count represents 4 packed
+	s32 Remainder;
+	vertex_attribute_4x* Attributes;
 };
 
 struct engine_state
 {
 	memory_block WorldMemory;
-	fragment_group FragmentGroup;
 	
 	m4x4 Perspective;
 	v2 CameraRotation;
@@ -62,6 +23,10 @@ struct engine_state
 	engine_mesh Plane;
 	engine_mesh Sphere;
 	
+	engine_mesh_m128 Cube_M128;
+	engine_mesh_m128 Plane_M128;
+	engine_mesh_m128 Sphere_M128;
+	
 	render_matrial BrickMaterial;
 	render_matrial TileMaterial;
 	
@@ -69,12 +34,9 @@ struct engine_state
 	m4x4 ShadowMapProjection;
 	m4x4 ShadowMapMatrix;
 	
-	render_bitmap BrickDiffuse;
-	render_bitmap BrickSpecular;
-	render_bitmap BrickOcclusion;
-	render_bitmap BrickNormal;
-	
 	render_bitmap CheckerBoardBitmap;
+	
+	fragment_group FragmentGroups[128];
 };
 
 #endif //_ENGINE_H

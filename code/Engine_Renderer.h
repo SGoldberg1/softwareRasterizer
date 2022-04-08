@@ -3,6 +3,57 @@
 #ifndef _ENGINE__RENDERER_H
 #define _ENGINE__RENDERER_H
 
+struct vertex_attribute
+{
+	union __attribute((aligned(16)))
+	{
+		f32 E[14];
+		struct
+		{
+			v3 Vertex;
+			v3 Normal;
+			v2 UV;
+			v3 Tangent;
+			v3 Bitangent;
+		};
+	};
+};
+
+union engine_mesh
+{
+	struct __attribute((aligned(16)))
+	{
+		s32 VertexCount;
+		vertex_attribute* Attributes;
+	};
+};
+
+#pragma pack(push, 1)
+struct bitmap_header
+{
+    s16 ID;
+    s32 FileSize;
+    s16 Reserved1;
+    s16 Reserved2;
+    s32 PixelOffset;
+    s32 HeaderSize;
+    s32 Width;
+    s32 Height;
+    s16 Planes;
+    s16 BitsPerPixel;
+    s32 Compression;
+    s32 ImageSize;
+    s32 PixelPerMeterX;
+    s32 PixelPerMeterY;
+    s32 ColorPalette;
+    s32 ImportantColors;
+	
+	u32 RedMask;
+    u32 GreenMask;
+    u32 BlueMask;
+};
+#pragma pack(pop)
+
 struct render_matrial
 {
 	f32 SpecularIntensity;
@@ -14,19 +65,19 @@ struct render_matrial
 	v4 Color;
 };
 
-
 struct render_fragment
 {
 	v4 Position;
-	v3 Normal;
+	v4 Normal;
 	v2 UV;
-	v3 Tangent;
-	v3 Bitangent;
+	v4 Tangent;
+	v4 Bitangent;
 	v4 ShadowMapCoord;
 };
 
 struct fragment_group
 {
+	render_matrial Material;
 	s32 Count;
 	s32 Used;
 	s32 Size;
@@ -34,18 +85,19 @@ struct fragment_group
 };
 
 inline void
-FragmentGroup_Initialize(fragment_group* block, s32 size, void* base)
+FragmentGroup_Initialize(fragment_group* group, s32 size, void* base)
 {
-	block->Used = 0;
-	block->Size = size;
-	block->Base = (render_fragment*)base;
+	group->Count = 0;
+	group->Used = 0;
+	group->Size = size;
+	group->Base = (render_fragment*)base;
 }
 
 inline void
-FragmentGroup_Reset(fragment_group* block)
+FragmentGroup_Reset(fragment_group* group)
 {
-	block->Used = 0;
-	block->Count = 0;
+	group->Used = 0;
+	group->Count = 0;
 }
 
 inline render_fragment*

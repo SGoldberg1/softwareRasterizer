@@ -2,7 +2,6 @@
 // TODO(Stephen): Remove this
 global_variable v3 cameraPosition = {};
 
-
 v3
 ComputeLightByDirection(v3 lightDirection, v3 fragPosition, v3 normal,
 						v3 lightColor, render_matrial* material, v2 uv)
@@ -52,15 +51,17 @@ FragmentShader_MainPass(engine_buffer* buffer, render_bitmap* shadowMap,
 						render_matrial* material, render_fragment* fragment0, 
 						render_fragment* fragment1, render_fragment* fragment2)
 {
+	//TIMED_SCOPE(FullScope);
 	f32 ambientIntensity = 0.1f;
 	v3 ambientColor = V3(1, 1, 1) * ambientIntensity;
 	
 	v3 lightDirection = -Math_NormalizedV3({-1, -1, -1});
 	f32 lightIntensityDirection = 0.15f;
+	lightIntensityDirection = 1.0f;
 	v3 lightColor = V3(0.957f, 0.914f, 0.608f) * lightIntensityDirection;
 	lightColor = V3(1, 1, 1) * lightIntensityDirection;
 	
-#if 1
+#if 0
 	v3 lightDirection2 = -Math_NormalizedV3({1, 0, 1});
 	f32 lightIntensityDirection2 = 1.0f;
 	v3 lightColor2 = V3(1, 0, 0) * lightIntensityDirection2;
@@ -93,6 +94,7 @@ FragmentShader_MainPass(engine_buffer* buffer, render_bitmap* shadowMap,
 	fragment2->Position.XYZ *= fragment2->Position.W;
 	
 	//Perspective correct interpolation per vertex attribute
+	
 	fragment0->UV *= fragment0->Position.W;
 	fragment1->UV *= fragment1->Position.W;
 	fragment2->UV *= fragment2->Position.W;
@@ -151,6 +153,7 @@ FragmentShader_MainPass(engine_buffer* buffer, render_bitmap* shadowMap,
 	u8* normalPixels = (u8*)material->Normal.Pixels;
 	f32* shadowMapPixels = (f32*)shadowMap->Pixels;
 	
+	
 	for(s32 y = top; y <= bottom; ++y)
 	{
 		colorBufferPixel = colorbufferRow;
@@ -189,8 +192,8 @@ FragmentShader_MainPass(engine_buffer* buffer, render_bitmap* shadowMap,
 					fragPosition = Math_NormalizedV3(fragPosition);
 					
 					//Compute interpolated normal
-					v3 fragNormal = (s * fragment0->Normal + 
-									 u * fragment1->Normal + v * fragment2->Normal);
+					v3 fragNormal = (s * fragment0->Normal.XYZ + 
+									 u * fragment1->Normal.XYZ + v * fragment2->Normal.XYZ);
 					fragNormal = Math_NormalizedV3(fragNormal);
 					
 					//Compute interpolated shadow map coordinate
@@ -230,11 +233,11 @@ FragmentShader_MainPass(engine_buffer* buffer, render_bitmap* shadowMap,
 					// TODO(Stephen): Pre compute this in asset processor
 					normalMap = Math_NormalizedV3(normalMap * 2.0f - V3(1, 1, 1));
 					
-					v3 tangent = (s * fragment0->Tangent + 
-								  u * fragment1->Tangent + v * fragment2->Tangent);
+					v3 tangent = (s * fragment0->Tangent.XYZ + 
+								  u * fragment1->Tangent.XYZ + v * fragment2->Tangent.XYZ);
 					
-					v3 bitangent = (s * fragment0->Bitangent + 
-									u * fragment1->Bitangent + v * fragment2->Bitangent);
+					v3 bitangent = (s * fragment0->Bitangent.XYZ + 
+									u * fragment1->Bitangent.XYZ + v * fragment2->Bitangent.XYZ);
 					
 					v3 normal = Math_NormalizedV3(normalMap.X * tangent + 
 												  normalMap.Y * bitangent + 
@@ -248,7 +251,6 @@ FragmentShader_MainPass(engine_buffer* buffer, render_bitmap* shadowMap,
 						finalLightColor += ComputeLightByDirection(lights[i], 
 																   fragPosition, normal,
 																   lightColors[i], material, uv);
-						
 					}
 					
 					if(Math_IsClampedF32(shadowCoord.X, 0.0f, 1.0f) && 
@@ -275,6 +277,13 @@ FragmentShader_MainPass(engine_buffer* buffer, render_bitmap* shadowMap,
 					textureX = Math_RoundF32ToS32(uv.X * (material->Occlusion.Width - 1));
 					textureY = Math_RoundF32ToS32((material->Occlusion.Height - 1) * (uv.Y)); 
 					textureSample = occlusionPixels[textureY * material->Occlusion.Width + textureX];
+					
+					
+#if 0					
+					__m128 finalColor = _mm_load_ps(finalLightColor.E);
+					__m128 oneOver255 = _mm_set1_ps(OneOver255);
+#endif
+					
 					
 					finalLightColor.R *= (f32)((textureSample >> 24) & 0xFF) * OneOver255;
 					finalLightColor.G *= (f32)((textureSample >> 16) & 0xFF) * OneOver255;
@@ -315,7 +324,6 @@ FragmentShader_MainPass(engine_buffer* buffer, render_bitmap* shadowMap,
 internal_function void 
 FragmentShader_ComputeDepth(render_bitmap* buffer, v4 position0, v4 position1, v4 position2)
 {
-	
 	position0.W = 1.0f / position0.W;
 	position0.XY *= position0.W;
 	

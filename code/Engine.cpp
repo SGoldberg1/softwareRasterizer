@@ -4,12 +4,14 @@
 #include "Engine_Platform.h"
 #include "Engine_Memory.h"
 #include "Engine_Math.h"
+#include "Engine_Intrinsics.h"
 #include "Engine_Random.h"
 #include "Engine_Renderer.h"
 #include "Engine.h"
 
 #include "Engine_Memory.cpp"
 #include "Engine_Math.cpp"
+#include "Engine_Intrinsics.cpp"
 #include "Engine_Renderer.cpp"
 #include "Engine_FragmentShader.cpp"
 #include "Engine_VertexShader.cpp"
@@ -88,7 +90,6 @@ WriteEngineBuffers(debug_file_write* writeFile,
 			
 			MemoryBlock_PushArray(temp, height * width, u32);
 		}
-		
 	}
 }
 
@@ -110,19 +111,92 @@ LoadBitmap(debug_file_read* readFile, char* fileName)
 }
 
 engine_mesh
-LoadMesh(debug_file_read* readFile, char* fileName)
+LoadMesh(engine_debug* debug, char* fileName, engine_mesh_m128* out = 0, memory_block* memory = 0)
 {
-	debug_file file = readFile(fileName);
+	debug_file file = debug->ReadFile(fileName);
 	engine_mesh result = {};
 	
 	if(file.IsValid)
 	{
 		loadable_mesh* mesh = (loadable_mesh*)file.Contents;
-		
 		result.VertexCount = mesh->VertexCount;
 		result.Attributes = (vertex_attribute*)(mesh + 1);
-		result.Tangents = (v4*)((u8*)mesh + mesh->TangentOffset);
-	}
+		
+		s32 remainder = mesh->VertexCount % 4;
+		s32 vertexCount = mesh->VertexCount / 4;
+		s32 m128Count = vertexCount;
+		
+		if(remainder)
+		{
+			++m128Count;
+		}
+		
+		out->M128Count = m128Count;
+		out->Remainder = remainder;
+		
+		vertex_attribute* source = (vertex_attribute*)(mesh + 1);
+		out->Attributes = MemoryBlock_PushArray(memory, m128Count, vertex_attribute_4x, 16);
+		vertex_attribute_4x* destination = out->Attributes;
+		
+		s32 count = 0;
+		
+		for(s32 i = 0; i < vertexCount; ++i)
+		{
+			for(s32 j = 0; j < 4; ++j)
+			{
+				vertex_attribute* s =  source++;
+				destination->Vertices.X[j] = s->Vertex.X;
+				destination->Vertices.Y[j] = s->Vertex.Y;
+				destination->Vertices.Z[j] = s->Vertex.Z;
+				destination->Vertices.W[j] = 1;
+				++count;
+				
+				destination->Normals.X[j] = s->Normal.X;
+				destination->Normals.Y[j] = s->Normal.Y;
+				destination->Normals.Z[j] = s->Normal.Z;
+				destination->Normals.W[j] = 0;
+				
+				destination->UVs.X[j] = s->UV.X;
+				destination->UVs.Y[j] = s->UV.Y;
+				
+				destination->Tangents.X[j] = s->Tangent.X;
+				destination->Tangents.Y[j] = s->Tangent.Y;
+				destination->Tangents.Z[j] = s->Tangent.Z;
+				destination->Tangents.W[j] = 0;
+				
+				destination->Bitangents.X[j] = s->Bitangent.X;
+				destination->Bitangents.Y[j] = s->Bitangent.Y;
+				destination->Bitangents.Z[j] = s->Bitangent.Z;
+				destination->Bitangents.W[j] = 0;
+			}
+			
+			++destination;
+		}
+		
+		for(s32 i = 0; i < remainder; ++i)
+		{
+			vertex_attribute* s =  source++;
+			destination->Vertices.X[i] = s->Vertex.X;
+			destination->Vertices.Y[i] = s->Vertex.Y;
+			destination->Vertices.Z[i] = s->Vertex.Z;
+			destination->Vertices.W[i] = 1;
+			
+			destination->Normals.X[i] = s->Normal.X;
+			destination->Normals.Y[i] = s->Normal.Y;
+			destination->Normals.Z[i] = s->Normal.Z;
+			
+			destination->UVs.X[i] = s->UV.X;
+			destination->UVs.Y[i] = s->UV.Y;
+			
+			destination->Tangents.X[i] = s->Tangent.X;
+			destination->Tangents.Y[i] = s->Tangent.Y;
+			destination->Tangents.Z[i] = s->Tangent.Z;
+			
+			destination->Bitangents.X[i] = s->Bitangent.X;
+			destination->Bitangents.Y[i] = s->Bitangent.Y;
+			destination->Bitangents.Z[i] = s->Bitangent.Z;
+		}
+	}//if(file.IsValid)
 	
 	return(result);
 }
@@ -142,10 +216,10 @@ UpdateCamera(engine_state* state, v3 movement, v2 rotation)
 	v3 axisZ = Math_NormalizedV3({ yawSin * pitchCos, -pitchSin, pitchCos * yawCos });
 	v3 axisY = Math_CrossProductV3(axisZ, axisX);
 	
-	state->Camera.Row1 = V4(axisX, -Math_DotProductV3(axisX, state->CameraPosition));
-	state->Camera.Row2 = V4(axisY, -Math_DotProductV3(axisY, state->CameraPosition));
-	state->Camera.Row3 = V4(axisZ, -Math_DotProductV3(axisZ, state->CameraPosition));
-	state->Camera.Row4 = {0, 0, 0, 1};
+	state->Camera.Row0 = V4(axisX, -Math_DotProductV3(axisX, state->CameraPosition));
+	state->Camera.Row1 = V4(axisY, -Math_DotProductV3(axisY, state->CameraPosition));
+	state->Camera.Row2 = V4(axisZ, -Math_DotProductV3(axisZ, state->CameraPosition));
+	state->Camera.Row3 = {0, 0, 0, 1};
 }
 
 inline void
@@ -164,10 +238,10 @@ ConstructOrthographicMatrix(m4x4* orthographic,
 	f32 c =  -farPlane / (farPlane - nearPlane);
 	f32 d =  (-farPlane * nearPlane) / (farPlane - nearPlane);
 	
-	orthographic->Row1 = { a,  0,  0,  0  };
-	orthographic->Row2 = { 0,  b,  0,  0  };
-	orthographic->Row3 = { 0,  0,  c,  d  };
-	orthographic->Row4 = { 0,  0,  0,  1  };
+	orthographic->Row0 = { a,  0,  0,  0  };
+	orthographic->Row1 = { 0,  b,  0,  0  };
+	orthographic->Row2 = { 0,  0,  c,  d  };
+	orthographic->Row3 = { 0,  0,  0,  1  };
 	
 	m4x4 offset = 
 	{
@@ -201,10 +275,10 @@ ConstructPerspectiveMatrix(m4x4* perspective,
 	f32 c =  -farPlane / (farPlane - nearPlane);
 	f32 d =  (-farPlane * nearPlane) / (farPlane - nearPlane);
 	
-	perspective->Row1 = { a,  0,  0,  0  };
-	perspective->Row2 = { 0,  b,  0,  0  };
-	perspective->Row3 = { 0,  0,  c,  d  };
-	perspective->Row4 = { 0,  0, -1,  0  };
+	perspective->Row0 = { a,  0,  0,  0  };
+	perspective->Row1 = { 0,  b,  0,  0  };
+	perspective->Row2 = { 0,  0,  c,  d  };
+	perspective->Row3 = { 0,  0, -1,  0  };
 	
 	m4x4 offset = 
 	{
@@ -253,11 +327,22 @@ ENGINE_UPDATE(EngineUpdate)
 		
 		state->CheckerBoardBitmap = LoadBitmap(debug->ReadFile, "./assets/images/checkerPattern.sr");
 		
-		state->Plane = LoadMesh(debug->ReadFile, "./assets/models/plane.sr");
-		state->Sphere = LoadMesh(debug->ReadFile, "./assets/models/sphere.sr");
-		state->Cube = LoadMesh(debug->ReadFile, "./assets/models/cube.sr");
+		state->Plane = LoadMesh(debug, "./assets/models/plane.sr", 
+								&state->Plane_M128, &state->WorldMemory);
 		
-		FragmentGroup_Initialize(&state->FragmentGroup, memory->TransientSize, memory->Transient);
+		state->Sphere = LoadMesh(debug, "./assets/models/sphere.sr",
+								 &state->Sphere_M128, &state->WorldMemory);
+		state->Cube = LoadMesh(debug, "./assets/models/cube.sr",
+							   &state->Cube_M128, &state->WorldMemory);
+		
+		s32 fragmentGroupSize = memory->TransientSize / ArrayLength(state->FragmentGroups);
+		
+		for(s32 i = 0; i < ArrayLength(state->FragmentGroups); ++i)
+		{
+			FragmentGroup_Initialize(state->FragmentGroups + i, 
+									 fragmentGroupSize, 
+									 (u8*)memory->Transient + fragmentGroupSize * i);
+		}
 		
 		s32 width = 1024;
 		s32 height = 1024;
@@ -281,12 +366,12 @@ ENGINE_UPDATE(EngineUpdate)
 	v3 movement = {};
 	v2 rotation = {};
 	
-	if(keyboard->A.IsDown) { movement -= state->Camera.Row1.XYZ; }
-	if(keyboard->D.IsDown) { movement += state->Camera.Row1.XYZ; }
-	if(keyboard->E.IsDown) { movement += state->Camera.Row2.XYZ; }
-	if(keyboard->Q.IsDown) { movement -= state->Camera.Row2.XYZ; }
-	if(keyboard->S.IsDown) { movement += state->Camera.Row3.XYZ; }
-	if(keyboard->W.IsDown) { movement -= state->Camera.Row3.XYZ; }
+	if(keyboard->A.IsDown) { movement -= state->Camera.Row0.XYZ; }
+	if(keyboard->D.IsDown) { movement += state->Camera.Row0.XYZ; }
+	if(keyboard->E.IsDown) { movement += state->Camera.Row1.XYZ; }
+	if(keyboard->Q.IsDown) { movement -= state->Camera.Row1.XYZ; }
+	if(keyboard->S.IsDown) { movement += state->Camera.Row2.XYZ; }
+	if(keyboard->W.IsDown) { movement -= state->Camera.Row2.XYZ; }
 	
 	if(keyboard->Left.IsDown)  { rotation.X =  1; }
 	if(keyboard->Right.IsDown) { rotation.X = -1; }
@@ -298,7 +383,7 @@ ENGINE_UPDATE(EngineUpdate)
 	
 	UpdateCamera(state, movement * 6 * time->Delta, rotation * 2 * time->Delta);
 	
-	ClearBitmap(&buffer->Color, {0.1f, 0.1f, 0.1f, 1});
+	//ClearBitmap(&buffer->Color, {0.1f, 0.1f, 0.1f, 1});
 	ClearBitmap(&buffer->Color, {});
 	ClearDepthBuffer(&buffer->Depth, 0.0f);
 	ClearDepthBuffer(&state->ShadowMap, 0.0f);
@@ -309,29 +394,34 @@ ENGINE_UPDATE(EngineUpdate)
 	v4 color = {0.7f, 0.3f, 0.3f, 1.0f};
 	color = {1, 1, 1, 0};
 	
-	
-	engine_mesh mesh[2];
+#define MeshCount 2
+	engine_mesh mesh[MeshCount];
 	mesh[0] = state->Sphere;
 	mesh[1] = state->Plane;
+	
+	engine_mesh_m128 mesh128[MeshCount];
+	mesh128[0] = state->Sphere_M128;
+	mesh128[1] = state->Plane_M128;
 	
 	f32 c = Math_Cos(elapsedTime * 0);
 	f32 s = Math_Sin(elapsedTime * 0);
 	m4x4 worldMatrix[2];
-	worldMatrix[0].Row1 = {c * 0.75f,  0, -s * 0.75f,  1};
-	worldMatrix[0].Row2 = {0,  1 * 0.75f,  0, 0};
-	worldMatrix[0].Row3 = {s * 0.75f,  0,  c * 0.75f, 1};
-	worldMatrix[0].Row4 = {0,  0,  0, 1};
+	worldMatrix[0].Row0 = {c * 0.75f,  0, -s * 0.75f,  1};
+	worldMatrix[0].Row1 = {0,  1 * 0.75f,  0, 0};
+	worldMatrix[0].Row2 = {s * 0.75f,  0,  c * 0.75f, 1};
+	worldMatrix[0].Row3 = {0,  0,  0, 1};
 	
 	c = Math_Cos(elapsedTime * 0);
 	s = Math_Sin(elapsedTime * 0);
 	
-	worldMatrix[1].Row1 = {c * 3,  0, -s,  0};
-	worldMatrix[1].Row2 = {0,  1,  0,     -2};
-	worldMatrix[1].Row3 = {s,  0,  c * 3,  0};
-	worldMatrix[1].Row4 = {0,  0,  0,      1};
+	worldMatrix[1].Row0 = {c * 3,  0, -s,  0};
+	worldMatrix[1].Row1 = {0,  1,  0,     -2};
+	worldMatrix[1].Row2 = {s,  0,  c * 3,  0};
+	worldMatrix[1].Row3 = {0,  0,  0,      1};
 	
 	state->BrickMaterial.SpecularIntensity = 0.1f;
 	state->BrickMaterial.SpecularShininess = 0.5f;
+	
 	state->BrickMaterial.Color = {0.7f, 0.6f, 0.7f, 0.25f};
 	
 	state->TileMaterial.SpecularIntensity = 2.0f;
@@ -344,50 +434,62 @@ ENGINE_UPDATE(EngineUpdate)
 	
 	cameraPosition = state->CameraPosition;
 	
-#if 1
-	ConstructOrthographicMatrix(&state->ShadowMapProjection, 0.1f, 100.0f, 0, 10, 0, 10);
-#else
-	ConstructPerspectiveMatrix(&state->ShadowMapProjection, 60, 0.1f, 100.0f, 0, 20,
-							   0, 20);
-#endif
-	
 	v3 lightPosition = V3(10, 10, 10);
 	M4x4_LookAtViewMatrix(&state->ShadowMapMatrix, lightPosition, {}, {0, 1, 0});
 	
 	m4x4 viewProjection = Math_MultiplyM4x4(&state->Perspective, &state->Camera);
 	m4x4 shadowVP = Math_MultiplyM4x4(&state->ShadowMapProjection, &state->ShadowMapMatrix);
 	
-	for(s32 i = 0; i < ArrayLength(mesh); ++i)
+	for(s32 i = 0; i < MeshCount; ++i)
 	{
+		m4x4 shadowMVP = Math_MultiplyM4x4(&shadowVP, worldMatrix + i);
+		m4x4 mvpMatrix = Math_MultiplyM4x4(&viewProjection, worldMatrix + i);
 		
-		m4x4 mvpMatrix = Math_MultiplyM4x4(&shadowVP, worldMatrix + i);
-		VertexShader_DepthMap(&state->ShadowMap, mesh + i, &mvpMatrix);
+		FragmentGroup_Reset(state->FragmentGroups + i);
+		state->FragmentGroups[i].Material = materials[i];
 		
-		mvpMatrix = Math_MultiplyM4x4(&viewProjection, worldMatrix + i);
-		VertexShader_DepthMap(&buffer->Depth, mesh + i, &mvpMatrix);
+#if 1
+		VertexShader_MainPass_4X(state->FragmentGroups + i,  mesh128 + i, 
+								 worldMatrix + i, &mvpMatrix, &shadowMVP);
+#else
+		VertexShader_MainPass(state->FragmentGroups + i,  mesh + i, 
+							  worldMatrix + i, &mvpMatrix, &shadowMVP);
+#endif
 		
 	}
 	
-	for(s32 i = 0; i < ArrayLength(mesh); ++i)
+	for(s32 i = 0; i < MeshCount; ++i)
 	{
-		m4x4 mvpMatrix = Math_MultiplyM4x4(&viewProjection, worldMatrix + i);
-		m4x4 shadowMVP = Math_MultiplyM4x4(&shadowVP, worldMatrix + i);
-		
-		VertexShader_MainPass(&state->FragmentGroup,  mesh + i, 
-							  worldMatrix + i, &mvpMatrix, &shadowMVP);
-		
-		for(s32 j = 0; j < state->FragmentGroup.Count; j += 3)
+		fragment_group* group = state->FragmentGroups + i;
+		for(s32 i = 0; i < group->Count; i += 3)
 		{
-			render_fragment* fragments = state->FragmentGroup.Base + j;
-			
+			render_fragment* fragment0 = group->Base + i + 0;
+			render_fragment* fragment1 = group->Base + i + 1;
+			render_fragment* fragment2 = group->Base + i + 2;
+			FragmentShader_ComputeDepth(&state->ShadowMap, fragment0->ShadowMapCoord, 
+										fragment1->ShadowMapCoord, fragment2->ShadowMapCoord);
+			FragmentShader_ComputeDepth(&buffer->Depth, fragment0->Position, 
+										fragment1->Position, fragment2->Position);
+		}
+	}
+	
+	
+	for(s32 i = 0; i < MeshCount; ++i)
+	{
+		fragment_group* group = state->FragmentGroups + i;
+		
+		for(s32 i = 0; i < group->Count; i += 3)
+		{
+			render_fragment* fragment0 = group->Base + i + 0;
+			render_fragment* fragment1 = group->Base + i + 1;
+			render_fragment* fragment2 = group->Base + i + 2;
 			FragmentShader_MainPass(buffer, &state->ShadowMap,
-									materials + i, 
-									fragments + 0, fragments + 1, fragments + 2);
+									&group->Material, fragment0, 
+									fragment1, fragment2);
 			
 		}
-		
-		FragmentGroup_Reset(&state->FragmentGroup);
 	}
+	
 	
 	
 	if(0)
@@ -413,18 +515,35 @@ ENGINE_UPDATE(EngineUpdate)
 	MemoryBlock_PopArray(&state->WorldMemory, 
 						 colorShadowMap.Width * colorShadowMap.Height,
 						 u32);
-	
 #endif
 	
 #if 1
+	
 	local_persist f32 t = 0;
 	t += time->Delta;
 	
 	if(t > 1)
 	{
 		t = 0;
-		printf("%f\n", time->FPS);
+		printf("FPS: %f\n", time->FPS);
+		
+		for(s32 i = 0; i < ArrayLength(GlobalDebugTable.Entry); ++i)
+		{
+			if(GlobalDebugTable.Entry[i].CalledCount)
+			{
+				u64 count = GlobalDebugTable.Entry[i].CalledCount;
+				u64 totalCycles = GlobalDebugTable.Entry[i].Cycles;
+				u64 average = totalCycles / count;
+				printf("%s(%lu): Total Cycles: %lu | cph %lu\n", 
+					   GlobalDebugTable.Entry[i].Name, 
+					   count, 
+					   totalCycles, average);
+				
+			}
+		}
 	}
+	
+	GlobalDebugTable = {};
 #endif
 	
 }

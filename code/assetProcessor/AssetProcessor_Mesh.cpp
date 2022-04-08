@@ -258,15 +258,21 @@ ParseTriangle(mesh_token token)
 	return(result);
 }
 
-union vertex_attribute
+struct vertex_attribute
 {
-	f32 E[8];
-	struct
+	union __attribute((aligned(16)))
 	{
-		v3 Vertex;
-		v3 Normal;
-		v2 UV;
+		f32 E[14];
+		struct
+		{
+			v3 Vertex;
+			v3 Normal;
+			v2 UV;
+			v3 Tangent;
+			v3 Bitangent;
+		};
 	};
+	
 };
 
 void
@@ -302,9 +308,8 @@ ConstructVertexAttributes(memory_block* vertexMemory, memory_block* triangleMemo
 }
 
 void
-ComputeTangentVectors(memory_block* tangentMemory, memory_block* vertexAttributesMemory)
+ComputeTangentVectors(memory_block* vertexAttributesMemory)
 {
-	
 	vertex_attribute* attributes = (vertex_attribute*)vertexAttributesMemory->Base;
 	s32 vertexCount = vertexAttributesMemory->Used / sizeof(vertex_attribute);
 	v3* tangents = (v3*)calloc(1, (sizeof(v3) * vertexCount) * 2);
@@ -351,51 +356,41 @@ ComputeTangentVectors(memory_block* tangentMemory, memory_block* vertexAttribute
 	for(s32 i = 0; i < vertexCount; ++i)
 	{
 		v3 t = tangents[i];
-		v3 b = bitangents[i];
 		v3 n = attributes[i].Normal;
-		
-		v4* outTangent = MemoryBlock_PushStruct(tangentMemory, v4);
-		outTangent->XYZ = Math_NormalizedV3((t - n * Math_DotProductV3(n, t)));
-		outTangent->W = (Math_DotProductV3(Math_CrossProductV3(t, b), n) > 0.0f) ? 1.0f : -1.0f;
+		attributes[i].Tangent = Math_NormalizedV3((t - n * Math_DotProductV3(n, t)));
+		attributes[i].Bitangent = Math_CrossProductV3(n, t);
 	}
 	
 	free(tangents);
 }
 
 void
-WriteEngineMesh(memory_block* vertexAttributesMemory, memory_block* tangentMemory, 
-				char* inFileName)
+WriteEngineMesh(memory_block* vertexAttributesMemory, char* inFileName)
 {
 	char path[64] = {};
 	char fileName[16] = {};
 	ChangeFileExtension(fileName, inFileName, ENGINE_MESH_EXT);
 	GetLocalFileNamePath(ASSET_MESH_DIRECTORY, path, fileName);
-	
 	loadable_mesh mesh;
 	mesh.VertexCount = vertexAttributesMemory->Used / sizeof(vertex_attribute);
-	mesh.TangentOffset = sizeof(loadable_mesh) + vertexAttributesMemory->Used;
-	
 	WriteFile(path, sizeof(loadable_mesh), &mesh, "w");
 	WriteFile(path, vertexAttributesMemory->Used, vertexAttributesMemory->Base, "a");
-	WriteFile(path, tangentMemory->Used, tangentMemory->Base, "a");
 }
 
 void
 ProcessAllWaveFrontOBJs(working_directory workingDirectory)
 {
-	char* memory = (char*)calloc(1, MegaBytes(6));
+	char* memory = (char*)calloc(1, MegaBytes(5));
 	memory_block vertexMemory;
 	memory_block triangleMemory;
 	memory_block uvMemory;
 	memory_block normalMemory;
-	memory_block tangentMemory;
 	memory_block vertexAttributesMemory;
 	MemoryBlock_Initialize(&uvMemory, MegaBytes(1), memory);
 	MemoryBlock_Initialize(&normalMemory, MegaBytes(1), memory + MegaBytes(1));
 	MemoryBlock_Initialize(&vertexMemory, MegaBytes(1), memory +  + MegaBytes(2));
 	MemoryBlock_Initialize(&triangleMemory, MegaBytes(1), memory + MegaBytes(3));
-	MemoryBlock_Initialize(&tangentMemory, MegaBytes(1), memory + MegaBytes(4));
-	MemoryBlock_Initialize(&vertexAttributesMemory, MegaBytes(1), memory + MegaBytes(5));
+	MemoryBlock_Initialize(&vertexAttributesMemory, MegaBytes(1), memory + MegaBytes(4));
 	
 	char filePathBuffer[128] = {};
 	char directoryBuffer[256] = {};
@@ -413,7 +408,6 @@ ProcessAllWaveFrontOBJs(working_directory workingDirectory)
 				MemoryBlock_Reset(&uvMemory);
 				MemoryBlock_Reset(&vertexMemory);
 				MemoryBlock_Reset(&triangleMemory);
-				MemoryBlock_Reset(&tangentMemory);
 				MemoryBlock_Reset(&vertexAttributesMemory);
 				
 				GetLocalFileNamePath(directoryBuffer, filePathBuffer, directoryEntity->d_name);
@@ -500,8 +494,8 @@ ProcessAllWaveFrontOBJs(working_directory workingDirectory)
 				
 				ConstructVertexAttributes(&vertexMemory, &triangleMemory, &uvMemory, 
 										  &normalMemory, &vertexAttributesMemory);
-				ComputeTangentVectors(&tangentMemory, &vertexAttributesMemory);
-				WriteEngineMesh(&vertexAttributesMemory, &tangentMemory, 
+				ComputeTangentVectors(&vertexAttributesMemory);
+				WriteEngineMesh(&vertexAttributesMemory, 
 								directoryEntity->d_name);
 				
 				

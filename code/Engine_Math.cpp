@@ -187,15 +187,6 @@ Math_NormalizedV2(v2 a)
 	return(result);
 }
 
-// NOTE(Stephen): Result of taking the cross product two vectors that
-//both have a z-coordinate of zero.
-inline f32
-Math_EdgeFunctionV2(v2 a, v2 b)
-{
-	f32 result = (a.X * b.Y) - (a.Y * b.X);
-	return(result);
-}
-
 //////////////////////////////// V3
 
 inline f32 
@@ -299,10 +290,10 @@ inline v4
 Math_MultiplyM4x4(m4x4* matrix, v3 vector, f32 w = 1)
 {
 	v4 result;
-	result.X = Math_DotProductV4(matrix->Row1, vector, w);
-	result.Y = Math_DotProductV4(matrix->Row2, vector, w);
-	result.Z = Math_DotProductV4(matrix->Row3, vector, w);
-	result.W = Math_DotProductV4(matrix->Row4, vector, w);
+	result.X = Math_DotProductV4(matrix->Row0, vector, w);
+	result.Y = Math_DotProductV4(matrix->Row1, vector, w);
+	result.Z = Math_DotProductV4(matrix->Row2, vector, w);
+	result.W = Math_DotProductV4(matrix->Row3, vector, w);
 	return(result);
 }
 
@@ -310,10 +301,10 @@ inline v4
 Math_MultiplyM4x4(m4x4* matrix, v4 vector)
 {
 	v4 result;
-	result.X = Math_DotProductV4(matrix->Row1, vector);
-	result.Y = Math_DotProductV4(matrix->Row2, vector);
-	result.Z = Math_DotProductV4(matrix->Row3, vector);
-	result.W = Math_DotProductV4(matrix->Row4, vector);
+	result.X = Math_DotProductV4(matrix->Row0, vector);
+	result.Y = Math_DotProductV4(matrix->Row1, vector);
+	result.Z = Math_DotProductV4(matrix->Row2, vector);
+	result.W = Math_DotProductV4(matrix->Row3, vector);
 	return(result);
 }
 
@@ -321,25 +312,25 @@ inline m4x4
 Math_MultiplyM4x4(m4x4* a, m4x4* b)
 {
 	m4x4 result;
-	result.Row1.X = Math_DotProductV4(a->Row1, {b->Row1.X, b->Row2.X, b->Row3.X, b->Row4.X});
-	result.Row1.Y = Math_DotProductV4(a->Row1, {b->Row1.Y, b->Row2.Y, b->Row3.Y, b->Row4.Y});
-	result.Row1.Z = Math_DotProductV4(a->Row1, {b->Row1.Z, b->Row2.Z, b->Row3.Z, b->Row4.Z});
-	result.Row1.W = Math_DotProductV4(a->Row1, {b->Row1.W, b->Row2.W, b->Row3.W, b->Row4.W});
+	result.Row0.X = Math_DotProductV4(a->Row0, {b->Row0.X, b->Row1.X, b->Row2.X, b->Row3.X});
+	result.Row0.Y = Math_DotProductV4(a->Row0, {b->Row0.Y, b->Row1.Y, b->Row2.Y, b->Row3.Y});
+	result.Row0.Z = Math_DotProductV4(a->Row0, {b->Row0.Z, b->Row1.Z, b->Row2.Z, b->Row3.Z});
+	result.Row0.W = Math_DotProductV4(a->Row0, {b->Row0.W, b->Row1.W, b->Row2.W, b->Row3.W});
 	
-	result.Row2.X = Math_DotProductV4(a->Row2, {b->Row1.X, b->Row2.X, b->Row3.X, b->Row4.X});
-	result.Row2.Y = Math_DotProductV4(a->Row2, {b->Row1.Y, b->Row2.Y, b->Row3.Y, b->Row4.Y});
-	result.Row2.Z = Math_DotProductV4(a->Row2, {b->Row1.Z, b->Row2.Z, b->Row3.Z, b->Row4.Z});
-	result.Row2.W = Math_DotProductV4(a->Row2, {b->Row1.W, b->Row2.W, b->Row3.W, b->Row4.W});
+	result.Row1.X = Math_DotProductV4(a->Row1, {b->Row0.X, b->Row1.X, b->Row2.X, b->Row3.X});
+	result.Row1.Y = Math_DotProductV4(a->Row1, {b->Row0.Y, b->Row1.Y, b->Row2.Y, b->Row3.Y});
+	result.Row1.Z = Math_DotProductV4(a->Row1, {b->Row0.Z, b->Row1.Z, b->Row2.Z, b->Row3.Z});
+	result.Row1.W = Math_DotProductV4(a->Row1, {b->Row0.W, b->Row1.W, b->Row2.W, b->Row3.W});
 	
-	result.Row3.X = Math_DotProductV4(a->Row3, {b->Row1.X, b->Row2.X, b->Row3.X, b->Row4.X});
-	result.Row3.Y = Math_DotProductV4(a->Row3, {b->Row1.Y, b->Row2.Y, b->Row3.Y, b->Row4.Y});
-	result.Row3.Z = Math_DotProductV4(a->Row3, {b->Row1.Z, b->Row2.Z, b->Row3.Z, b->Row4.Z});
-	result.Row3.W = Math_DotProductV4(a->Row3, {b->Row1.W, b->Row2.W, b->Row3.W, b->Row4.W});
+	result.Row2.X = Math_DotProductV4(a->Row2, {b->Row0.X, b->Row1.X, b->Row2.X, b->Row3.X});
+	result.Row2.Y = Math_DotProductV4(a->Row2, {b->Row0.Y, b->Row1.Y, b->Row2.Y, b->Row3.Y});
+	result.Row2.Z = Math_DotProductV4(a->Row2, {b->Row0.Z, b->Row1.Z, b->Row2.Z, b->Row3.Z});
+	result.Row2.W = Math_DotProductV4(a->Row2, {b->Row0.W, b->Row1.W, b->Row2.W, b->Row3.W});
 	
-	result.Row4.X = Math_DotProductV4(a->Row4, {b->Row1.X, b->Row2.X, b->Row3.X, b->Row4.X});
-	result.Row4.Y = Math_DotProductV4(a->Row4, {b->Row1.Y, b->Row2.Y, b->Row3.Y, b->Row4.Y});
-	result.Row4.Z = Math_DotProductV4(a->Row4, {b->Row1.Z, b->Row2.Z, b->Row3.Z, b->Row4.Z});
-	result.Row4.W = Math_DotProductV4(a->Row4, {b->Row1.W, b->Row2.W, b->Row3.W, b->Row4.W});
+	result.Row3.X = Math_DotProductV4(a->Row3, {b->Row0.X, b->Row1.X, b->Row2.X, b->Row3.X});
+	result.Row3.Y = Math_DotProductV4(a->Row3, {b->Row0.Y, b->Row1.Y, b->Row2.Y, b->Row3.Y});
+	result.Row3.Z = Math_DotProductV4(a->Row3, {b->Row0.Z, b->Row1.Z, b->Row2.Z, b->Row3.Z});
+	result.Row3.W = Math_DotProductV4(a->Row3, {b->Row0.W, b->Row1.W, b->Row2.W, b->Row3.W});
 	
 	return(result);
 }
@@ -350,87 +341,8 @@ M4x4_LookAtViewMatrix(m4x4* result, v3 position, v3 target, v3 worldUp)
     v3 forward = Math_NormalizedV3(position - target);
     v3 right = Math_CrossProductV3(Math_NormalizedV3(worldUp), forward);
     v3 up = Math_CrossProductV3(forward, right);
-	result->Row1 = V4(right,   -Math_DotProductV3(right, position));
-    result->Row2 = V4(up,      -Math_DotProductV3(up, position));
-    result->Row3 = V4(forward, -Math_DotProductV3(forward, position));
-	result->Row4 = V4(0, 0, 0, 1);
-}
-
-//////////////////////////////// Intersection
-
-inline b32
-Math_LineToLineIntersection(v2 p0, v2 p1, v2 p2, v2 p3, 
-							v2* intersection)
-{
-	b32 result = FALSE;
-	
-	v2 deltaA = (p1 - p0);
-	v2 deltaB = (p3 - p2);
-	
-	f32 determinant = ((deltaA.X * deltaB.Y) - (deltaA.Y * deltaB.X));
-	
-	if(determinant > 0.0f)
-	{
-		f32 determinantA1 = (((p2.X - p0.X) * deltaB.Y) - ((p2.Y - p0.Y) * deltaB.X));
-		f32 determinantA2 = ((deltaA.X * (p2.Y - p0.Y)) - (deltaA.Y * (p2.X - p0.X)));
-		f32 t =  (determinantA1 / determinant);
-		f32 s = -(determinantA2 / determinant);
-		
-		if(Math_IsClampedInclusiveF32(t, 0.0f, 1.0f) &&
-		   Math_IsClampedInclusiveF32(s, 0.0f, 1.0f))
-		{
-			*intersection = p0 + t * deltaA;
-			result = TRUE;
-		}
-	}
-	
-	return(result);
-}
-
-struct ray_hit
-{
-	b32 Hit;
-	v3 Point;
-	f32 Distance;
-};
-
-inline ray_hit
-Math_RayIntersectPlane(v3 rayDirection, v3 rayOrigin, 
-					   f32 rayLength, v3 planeNormal, v3 planePoint)
-{
-	ray_hit result = {};
-	f32 denominator = Math_DotProductV3(rayDirection, planeNormal);
-	
-	if(denominator != 0.0f)
-	{
-		f32 t = (Math_DotProductV3(planePoint - rayOrigin, planeNormal) / denominator);
-		
-		if(t >= 0)
-		{
-			v3 direction = rayDirection * t;
-			f32 magnitudeSquared = Math_SquaredMagnitudeV3(direction);
-			
-			if(magnitudeSquared)
-			{
-				result.Point = direction + rayOrigin;
-				result.Distance = Math_Sqrt(magnitudeSquared);
-				result.Hit = result.Distance <= rayLength;
-			}
-		}
-	}
-	
-	return(result);
-}
-
-inline v3
-Math_LineToPlaneIntersection(v3 start, v3 end, v3 planeNormal, v3 planePoint)
-{
-	v3 result = {};
-	v3 delta = end - start;
-	f32 numerator = Math_DotProductV3(planeNormal, planePoint - start);
-	f32 denominator = Math_DotProductV3(planeNormal, delta);
-	Assert(denominator != 0.0f);
-	f32 t = numerator / denominator;
-	result = start + t * delta;
-	return(result);
+	result->Row0 = V4(right,   -Math_DotProductV3(right, position));
+    result->Row1 = V4(up,      -Math_DotProductV3(up, position));
+    result->Row2 = V4(forward, -Math_DotProductV3(forward, position));
+	result->Row3 = V4(0, 0, 0, 1);
 }

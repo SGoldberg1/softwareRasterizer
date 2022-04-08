@@ -3,10 +3,12 @@
 #ifndef _ENGINE__MATH_H
 #define _ENGINE__MATH_H
 
+#include <smmintrin.h>
+
 #define MAX_S32 (0x7FFFFFFF)
 #define MIN_S32 (0x80000000)
 
-#define OneOver255 (1.0f / 255.0f);
+#define OneOver255 (1.0f / 255.0f)
 #define PI (3.1415926535897932384626433832795028841971693993751)
 #define OneOverPI (1.0f / PI)
 #define DegreesToRadians(degrees) (degrees) * (PI / 180.0f)
@@ -132,7 +134,7 @@ operator*(f32 scalar, v3s a)
 
 //////////////////////////////// v3
 
-union v3
+union v3 
 {
 	f32 E[3];
 	struct
@@ -247,79 +249,48 @@ operator*=(v3 &a, f32 b)
 	return(a);
 }
 
-union v4
+struct v4
 {
-	f32 E[4];
-	struct
+	union __attribute((aligned(16)))
 	{
-		f32 X;
-		f32 Y;
-		f32 Z;
-		f32 W;
-	};
-	struct
-	{
-		f32 R;
-		f32 G;
-		f32 B;
-		f32 A;
-	};
-	struct
-	{
-		v2 XY;
-		f32 Padding0;
-		f32 padding1;
-	};
-	struct
-	{
-		f32 Padding2;
-		v2 YZ;
-		f32 padding3;
-	};
-	struct
-	{
-		f32 Padding4;
-		f32 padding5;
-		v2 ZW;
-	};
-	struct
-	{
-		v3 XYZ;
-		f32 Padding6;
-	};
-	struct
-	{
-		f32 Padding7;
-		v3 YZW;
-	};
-	
-	struct
-	{
-		v2 RG;
-		f32 Padding8;
-		f32 padding9;
-	};
-	struct
-	{
-		f32 Padding10;
-		v2 GB;
-		f32 padding11;
-	};
-	struct
-	{
-		f32 Padding12;
-		f32 padding13;
-		v2 BA;
-	};
-	struct
-	{
-		v3 RGB;
-		f32 Padding14;
-	};
-	struct
-	{
-		f32 Padding15;
-		v3 GBA;
+		f32 E[4];
+		__m128 m128_data;
+		struct
+		{
+			f32 X;
+			f32 Y;
+			f32 Z;
+			f32 W;
+		};
+		struct
+		{
+			f32 R;
+			f32 G;
+			f32 B;
+			f32 A;
+		};
+		struct
+		{
+			v2 XY;
+			f32 Padding0;
+			f32 padding1;
+		};
+		struct
+		{
+			f32 Padding2;
+			f32 padding3;
+			v2 ZW;
+		};
+		struct
+		{
+			v3 XYZ;
+			f32 Padding4;
+		};
+		struct
+		{
+			v3 RGB;
+			f32 Padding5;
+		};
 	};
 };
 
@@ -380,29 +351,4 @@ operator*=(v4 &a, f32 scalar)
 	return(a);
 }
 
-union m4x4
-{
-	f32 E[16];
-	struct
-	{
-		v4 Row1;
-		v4 Row2;
-		v4 Row3;
-		v4 Row4;
-	};
-};
-
-
-struct clipped_triangle
-{
-	v3 Vertex0;
-	v3 Vertex1;
-	v3 Vertex2;
-};
-
-struct cube_bounds
-{
-	v3 Min;
-	v3 Max;
-};
 #endif //_ENGINE__MATH_H
